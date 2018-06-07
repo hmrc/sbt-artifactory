@@ -27,7 +27,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
   val password = sys.env.getOrElse("ARTIFACTORY_PASSWORD", "")
 
   override def projectSettings: Seq[Def.Setting[_]] =  Seq(
-    publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri) } ,
+    publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri + "/hmrc-releases") },
     credentials += Credentials("Artifactory Realm", host, username, password)
   )
 

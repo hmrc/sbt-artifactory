@@ -12,7 +12,11 @@ lazy val project = Project(pluginName, file("."))
     sbtPlugin := true,
     targetJvm := "jvm-1.7",
     scalaVersion := "2.10.4",
-    resolvers += Resolver.url(
-      "sbt-plugin-releases",
-      url("https://dl.bintray.com/content/sbt/sbt-plugin-releases"))(Resolver.ivyStylePatterns)
+    resolvers += Resolver.url("sbt-plugin-releases", url("https://dl.bintray.com/content/sbt/sbt-plugin-releases"))(
+      Resolver.ivyStylePatterns),
+    libraryDependencies ++= Seq(
+
+      "net.databinder.dispatch" %% "dispatch-core" % "0.11.4",
+      "org.scalatest" %% "scalatest" % "3.0.4" % Test
+    )
   )

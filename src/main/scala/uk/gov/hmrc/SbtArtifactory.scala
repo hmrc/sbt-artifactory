@@ -21,14 +21,41 @@ import sbt._
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
-  val uri = sys.env.getOrElse("ARTIFACTORY_URI", "")
-  val host = new URI(uri).getHost
+  val uri      = sys.env.getOrElse("ARTIFACTORY_URI", "")
+  val host     = new URI(uri).getHost
   val username = sys.env.getOrElse("ARTIFACTORY_USERNAME", "")
   val password = sys.env.getOrElse("ARTIFACTORY_PASSWORD", "")
 
-  override def projectSettings: Seq[Def.Setting[_]] =  Seq(
+  object autoImport {
+    val artifactoryUnpublish = taskKey[Unit]("artifactory_unpublish")
+  }
+
+  import autoImport._
+
+  override def projectSettings: Seq[Def.Setting[_]] = Seq(
     publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri + "/hmrc-releases") },
-    credentials += Credentials("Artifactory Realm", host, username, password)
+    credentials += Credentials("Artifactory Realm", host, username, password),
+    artifactoryUnpublish := Def.task {
+
+
+      postPublishCleanup(
+        credentials.value.head,
+
+      )
+
+    }
   )
+
+
+  def postPublishCleanup(
+    credentials: Credentials,
+
+  ) = {
+    val sbtArtifactoryRepo = ArtifactoryRepo(
+      credentials,
+      "hmrc-releases-local",
+      uri
+    )
+  }
 
 }

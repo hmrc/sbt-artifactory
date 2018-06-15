@@ -16,8 +16,10 @@
 
 package uk.gov.hmrc
 
+import dispatch.Res
 import sbt.Keys._
 import sbt._
+import scala.concurrent.Await
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
@@ -32,30 +34,58 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   import autoImport._
 
+  val artifactoryCredentials: DirectCredentials = Credentials(
+    realm = "Artifactory Realm",
+    host = host,
+    userName = username,
+    passwd = password
+  ).asInstanceOf[DirectCredentials]
+
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri + "/hmrc-releases") },
-    credentials += Credentials("Artifactory Realm", host, username, password),
-    artifactoryUnpublish := Def.task {
-
+    credentials += artifactoryCredentials,
+    artifactoryUnpublish := {
+      val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((mj, mn)) => mj -> mn
+        case _ => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
+      }
 
       postPublishCleanup(
-        credentials.value.head,
-
+        streams.value.log,
+        artifactoryCredentials,
+        organization.value,
+        name.value,
+        version.value,
+        s"$major.$minor"
       )
-
     }
   )
 
-
   def postPublishCleanup(
-    credentials: Credentials,
-
-  ) = {
+    logger: Logger,
+    credentials: DirectCredentials,
+    org: String,
+    name: String,
+    version: String,
+    scalaVersion: String
+  ): Res = {
     val sbtArtifactoryRepo = ArtifactoryRepo(
+      logger,
       credentials,
       "hmrc-releases-local",
       uri
     )
-  }
 
+    logger.info(s"Trying to delete artifact for $org.$name.${version}_$scalaVersion")
+
+    val artifact = ArtifactoryVersion(
+      scalaVersion = scalaVersion,
+      org = org,
+      name = name,
+      version = version
+    )
+
+    import scala.concurrent.duration._
+    Await.result(sbtArtifactoryRepo.deleteSafe(artifact), 5.minutes)
+  }
 }

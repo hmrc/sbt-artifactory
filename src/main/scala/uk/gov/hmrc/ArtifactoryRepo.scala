@@ -17,9 +17,10 @@
 package uk.gov.hmrc
 
 import java.util.Base64
+import com.ning.http.client.Response
 import dispatch.Defaults._
 import dispatch._
-import sbt.{DirectCredentials, Logger, ProcessLogger}
+import sbt.DirectCredentials
 import scala.concurrent.Future
 
 object Helpers {
@@ -28,7 +29,7 @@ object Helpers {
   }
 }
 
-case class ArtifactoryVersion(
+case class ArtifactVersion(
   scalaVersion: String,
   org: String,
   name: String,
@@ -36,74 +37,79 @@ case class ArtifactoryVersion(
 ) {
 
   import Helpers._
-  def apiUrl: String = s"${org.dotsToSlashes}/${name.dotsToSlashes}_$scalaVersion/$version"
+  def path: String = s"${org.dotsToSlashes}/${name.dotsToSlashes}_$scalaVersion/$version"
 }
 
 
-case class ArtifactoryRepo(
-  logger: Logger,
+abstract class ArtifactoryRepo(
   credentials: DirectCredentials,
-  repoKey: String,
-  artifactoryUrl: String
+  repoKey: String
 ) {
 
+  def execute(request: Req): Future[Response] =
+    Http(request)
 
-  val encodedCredentials: Array[Byte] = Base64.getEncoder.encode(s"${credentials.userName}:${credentials.passwd}".getBytes())
-  val authHeader = s"Basic: $encodedCredentials"
+  def log(msg: String): Unit
 
-  logger.info(s"Using HTTP Basic Authorization with header $authHeader")
+  val encodedCredentials: String = Base64.getEncoder.encodeToString(s"${credentials.userName}:${credentials.passwd}".getBytes())
+  val authHeader = s"Basic $encodedCredentials"
+
+  log(s"Using HTTP Basic Authorization with header $authHeader")
 
   implicit class ReqAuthVerb(req: Req) {
     def withAuth: Req = req <:< Seq("Authorization" -> authHeader)
   }
 
-  def artifactExists(artifact: ArtifactoryVersion): Future[Boolean] = {
+  def artifactExists(artifact: ArtifactVersion): Future[Boolean] = {
 
-    val apiUrl = s"$artifactoryUrl/$repoKey/${artifact.apiUrl}/"
-    logger.info(s"Calling API URL $apiUrl")
-    Console.println(s"Using remote API url $apiUrl")
+    val artifactLocation = artifactUrl(artifact)
+    log(s"Calling API URL $artifactLocation")
+    Console.println(s"Using remote API url $artifactLocation")
 
-    Http(url(apiUrl).withAuth) map { resp =>
-      logger.info(s"Received status code ${resp.getStatusCode} when checking if artifact $artifact exists")
+    execute(url(artifactLocation).GET.withAuth) map { resp =>
+      log(s"Received status code ${resp.getStatusCode} when checking if artifact $artifact exists")
       resp.getStatusCode match {
-        // If the artifact is found, the Artifactory API returns 200, and an HTML page with a list of avaialable files and versions for the artifact.
+        // If the artifact is found, the Artifactory API returns 200, and an HTML page with a list of available files and versions for the artifact.
         case 200 => {
-          logger.info(s"Artifact $artifact exists")
+          log(s"Artifact $artifact exists")
           true
         }
-
         // If not, we usually get 404, but in here we treat all non 200 response codes the same way.
         case _ => {
-          logger.info(s"Artifact $artifact not found on the remote repository $artifactoryUrl/$repoKey")
+          log(s"Artifact $artifact not found on the remote repository ${credentials.host}/$repoKey")
           false
         }
       }
     }
   }
 
-  def deleteSafe(artifact: ArtifactoryVersion): Future[dispatch.Res] = {
+  private def artifactUrl(artifact: ArtifactVersion) = {
+    s"https://${credentials.host}/artifactory/$repoKey/${artifact.path}/"
+  }
+
+  def deleteSafe(artifact: ArtifactVersion): Future[Response] = {
     artifactExists(artifact) flatMap {
       case true => deleteVersion(artifact)
       case false => {
         val err = new RuntimeException(s"Artifact $artifact does not exist.")
-        logger.trace(err)
+        log(err.getMessage)
         Future.failed(err)
       }
     }
   }
 
-  def deleteVersion(artifact: ArtifactoryVersion): Future[Res] = {
-    val apiUrl = s"$artifactoryUrl/$repoKey/${artifact.apiUrl}/"
-    logger.info(s"Calling DELETE $apiUrl")
+  def deleteVersion(artifact: ArtifactVersion): Future[Response] = {
+    val artifactLocation = artifactUrl(artifact)
+    log(s"Calling DELETE $artifactLocation")
 
-    Http(url(apiUrl).DELETE.withAuth) map { resp =>
-      logger.info(s"Received status code ${resp.getStatusCode} when deleting artifact")
+    execute(url(artifactLocation).DELETE.withAuth) flatMap { resp =>
+      log(s"Received status code ${resp.getStatusCode} when deleting artifact")
       resp.getStatusCode match {
-        case 200 | 204 => resp
+        case 200 | 204 => Future.successful(resp)
         case _ => {
           val err = new RuntimeException(s"Expected status code to be 200 or 204, got ${resp.getStatusCode} instead. Status text: ${resp.getStatusText}; Response body: ${resp.getResponseBody}")
-          logger.trace(err)
-          throw err
+          log(err.getMessage)
+          Future.failed(err)
         }
       }
     }

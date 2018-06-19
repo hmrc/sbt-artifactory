@@ -17,6 +17,8 @@ lazy val project = Project(pluginName, file("."))
     libraryDependencies ++= Seq(
 
       "net.databinder.dispatch" %% "dispatch-core" % "0.11.4",
-      "org.scalatest" %% "scalatest" % "3.0.4" % Test
+      "org.scalatest"           %% "scalatest"     % "3.0.4"      % "test",
+      "org.mockito"             %  "mockito-all"   % "1.10.19"    % "test",
+      "org.pegdown"             % "pegdown"        % "1.6.0"      % "test"
     )
   )

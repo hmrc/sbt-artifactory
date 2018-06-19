@@ -50,7 +50,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
         case _ => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
       }
 
-      postPublishCleanup(
+      unpublish(
         streams.value.log,
         artifactoryCredentials,
         organization.value,
@@ -61,7 +61,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
     }
   )
 
-  def postPublishCleanup(
+  def unpublish(
     logger: Logger,
     credentials: DirectCredentials,
     org: String,
@@ -69,16 +69,18 @@ object SbtArtifactory extends sbt.AutoPlugin {
     version: String,
     scalaVersion: String
   ): Res = {
-    val sbtArtifactoryRepo = ArtifactoryRepo(
-      logger,
+    val sbtArtifactoryRepo = new ArtifactoryRepo(
       credentials,
-      "hmrc-releases-local",
-      uri
-    )
+      "hmrc-releases-local"
+    ) {
+      override def log(msg: String): Unit = logger.info(msg)
+    }
+
+
 
     logger.info(s"Trying to delete artifact for $org.$name.${version}_$scalaVersion")
 
-    val artifact = ArtifactoryVersion(
+    val artifact = ArtifactVersion(
       scalaVersion = scalaVersion,
       org = org,
       name = name,

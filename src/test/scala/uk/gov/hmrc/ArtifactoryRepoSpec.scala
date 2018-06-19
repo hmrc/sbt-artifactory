@@ -19,24 +19,24 @@ package uk.gov.hmrc
 import com.ning.http.client.Response
 import dispatch.Req
 import org.mockito.Mockito
-import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
 import sbt.{Credentials, DirectCredentials}
 import scala.concurrent.Future
+import scala.util.Success
 
-class ArtifactoryRepoSpec extends FlatSpec with Matchers with ScalaFutures with MockitoSugar {
-  "artifactExists" should "return true if artifact exists and provide the correct credentials" in {
+class ArtifactoryRepoSpec extends FlatSpec with Matchers with MockitoSugar {
+  "deleteVersion" should "use the proper authentication" in {
 
     val artifactoryCredentials: DirectCredentials = Credentials(
-      realm = "Artifactory Realm",
-      host = "http://localhost",
+      realm    = "Artifactory Realm",
+      host     = "localhost",
       userName = "username",
-      passwd = "password"
+      passwd   = "password"
     ).asInstanceOf[DirectCredentials]
 
     val response = mock[Response]
-    Mockito.when(response.getStatusCode).thenReturn(200)
+    Mockito.when(response.getStatusCode).thenReturn(204)
 
     val repo = new ArtifactoryRepo(artifactoryCredentials, "hmrc-releases-local") {
       override def execute(request: Req): Future[Response] = {
@@ -47,17 +47,36 @@ class ArtifactoryRepoSpec extends FlatSpec with Matchers with ScalaFutures with 
       override def log(msg: String): Unit = {}
     }
 
-
-    repo.artifactExists(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")).futureValue shouldBe true
+    repo.deleteVersion(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0"))
 
   }
 
-  it should "return false if the artifact doesn't exist" in {
+  it should "return successfully if it deletes the artifact" in {
     val artifactoryCredentials: DirectCredentials = Credentials(
-      realm = "Artifactory Realm",
-      host = "http://localhost",
+      realm    = "Artifactory Realm",
+      host     = "localhost",
       userName = "username",
-      passwd = "password"
+      passwd   = "password"
+    ).asInstanceOf[DirectCredentials]
+
+    val response = mock[Response]
+    Mockito.when(response.getStatusCode).thenReturn(204)
+
+    val repo = new ArtifactoryRepo(artifactoryCredentials, "hmrc-releases-local") {
+      override def execute(request: Req): Future[Response] = Future.successful(response)
+
+      override def log(msg: String): Unit = {}
+    }
+    repo.deleteVersion(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")) shouldBe
+      Success("Artifact 'uk/gov/hmrc/my-artifact_2.11/0.1.0' deleted successfully from localhost")
+  }
+
+  it should "return successfully with a proper message if the artifact doesn't exist" in {
+    val artifactoryCredentials: DirectCredentials = Credentials(
+      realm    = "Artifactory Realm",
+      host     = "localhost",
+      userName = "username",
+      passwd   = "password"
     ).asInstanceOf[DirectCredentials]
 
     val response = mock[Response]
@@ -69,90 +88,30 @@ class ArtifactoryRepoSpec extends FlatSpec with Matchers with ScalaFutures with 
       override def log(msg: String): Unit = {}
     }
 
-    repo.artifactExists(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")).futureValue shouldBe false
-
+    repo.deleteVersion(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")) shouldBe
+      Success("Artifact 'uk/gov/hmrc/my-artifact_2.11/0.1.0' not found on localhost. No action taken.")
   }
 
-  "deleteVersion" should "return a successful future if it deletes the artifact" in {
+  it should "return a failure when the delete API call returns an unexpected result" in {
     val artifactoryCredentials: DirectCredentials = Credentials(
-      realm = "Artifactory Realm",
-      host = "http://localhost",
+      realm    = "Artifactory Realm",
+      host     = "localhost",
       userName = "username",
-      passwd = "password"
+      passwd   = "WRONG_PASSWORD"
     ).asInstanceOf[DirectCredentials]
 
     val response = mock[Response]
-    Mockito.when(response.getStatusCode).thenReturn(204)
+    Mockito.when(response.getStatusCode).thenReturn(401)
 
     val repo = new ArtifactoryRepo(artifactoryCredentials, "hmrc-releases-local") {
       override def execute(request: Req): Future[Response] = Future.successful(response)
 
       override def log(msg: String): Unit = {}
     }
-    repo.deleteVersion(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")).futureValue shouldBe response
-  }
 
-    it should "return a failed future if it fails to delete the artifact" in {
-      val artifactoryCredentials: DirectCredentials = Credentials(
-        realm = "Artifactory Realm",
-        host = "http://localhost",
-        userName = "username",
-        passwd = "password"
-      ).asInstanceOf[DirectCredentials]
-
-      val exception = new RuntimeException
-
-      val repo = new ArtifactoryRepo(artifactoryCredentials, "hmrc-releases-local") {
-        override def execute(request: Req): Future[Response] = Future.failed(exception)
-
-        override def log(msg: String): Unit = {}
-      }
-
-
-        repo.deleteVersion(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")).failed.futureValue shouldBe exception
-    }
-
-  "deleteSafe" should "return a successful future if it deletes the artifact" in {
-    val artifactoryCredentials: DirectCredentials = Credentials(
-      realm = "Artifactory Realm",
-      host = "http://localhost",
-      userName = "username",
-      passwd = "password"
-    ).asInstanceOf[DirectCredentials]
-
-    val response = mock[Response]
-    Mockito.when(response.getStatusCode).thenReturn(204)
-
-    val repo = new ArtifactoryRepo(artifactoryCredentials, "hmrc-releases-local") {
-      override def execute(request: Req): Future[Response] = Future.successful(response)
-
-      override def log(msg: String): Unit = {}
-
-      override def artifactExists(artifact: ArtifactVersion): Future[Boolean] = Future.successful(true)
-    }
-    repo.deleteSafe(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")).futureValue shouldBe response
-  }
-
-  "deleteSafe" should "return a failed future if it fails to delete the artifact because it is not found" in {
-    val artifactoryCredentials: DirectCredentials = Credentials(
-      realm = "Artifactory Realm",
-      host = "http://localhost",
-      userName = "username",
-      passwd = "password"
-    ).asInstanceOf[DirectCredentials]
-
-    val artifactVersion = ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")
-
-    val exception = new RuntimeException(s"Artifact $artifactVersion does not exist.")
-
-    val repo = new ArtifactoryRepo(artifactoryCredentials, "hmrc-releases-local") {
-      override def execute(request: Req): Future[Response] = ???
-
-      override def log(msg: String): Unit = {}
-
-      override def artifactExists(artifact: ArtifactVersion): Future[Boolean] = Future.successful(false)
-    }
-    repo.deleteSafe(artifactVersion).failed.futureValue.getMessage shouldBe exception.getMessage
+    repo.deleteVersion(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")).isFailure shouldBe true
+    repo.deleteVersion(ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")).failed.get.getMessage shouldBe
+      "Artifact 'uk/gov/hmrc/my-artifact_2.11/0.1.0' could not be deleted from localhost. Received status 401"
   }
 
 }

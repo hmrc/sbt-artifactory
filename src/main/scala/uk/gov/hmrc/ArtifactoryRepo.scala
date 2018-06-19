@@ -21,7 +21,10 @@ import com.ning.http.client.Response
 import dispatch.Defaults._
 import dispatch._
 import sbt.DirectCredentials
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
+import scala.util.{Failure, Success, Try}
+
+import scala.concurrent.duration._
 
 object Helpers {
   implicit class UrlDotPadding(val str: String) extends AnyVal {
@@ -40,78 +43,38 @@ case class ArtifactVersion(
   def path: String = s"${org.dotsToSlashes}/${name.dotsToSlashes}_$scalaVersion/$version"
 }
 
-
-abstract class ArtifactoryRepo(
-  credentials: DirectCredentials,
-  repoKey: String
-) {
+abstract class ArtifactoryRepo(credentials: DirectCredentials, repoKey: String) {
 
   def execute(request: Req): Future[Response] =
     Http(request)
 
   def log(msg: String): Unit
 
-  val encodedCredentials: String = Base64.getEncoder.encodeToString(s"${credentials.userName}:${credentials.passwd}".getBytes())
+  val encodedCredentials: String =
+    Base64.getEncoder.encodeToString(s"${credentials.userName}:${credentials.passwd}".getBytes())
   val authHeader = s"Basic $encodedCredentials"
-
-  log(s"Using HTTP Basic Authorization with header $authHeader")
 
   implicit class ReqAuthVerb(req: Req) {
     def withAuth: Req = req <:< Seq("Authorization" -> authHeader)
   }
 
-  def artifactExists(artifact: ArtifactVersion): Future[Boolean] = {
+  def deleteVersion(artifact: ArtifactVersion): Try[String] = {
+    val artifactUrl = s"https://${credentials.host}/artifactory/$repoKey/${artifact.path}/"
+    log(s"Calling DELETE $artifactUrl")
 
-    val artifactLocation = artifactUrl(artifact)
-    log(s"Calling API URL $artifactLocation")
-    Console.println(s"Using remote API url $artifactLocation")
-
-    execute(url(artifactLocation).GET.withAuth) map { resp =>
-      log(s"Received status code ${resp.getStatusCode} when checking if artifact $artifact exists")
+    val futureResponse = execute(url(artifactUrl).DELETE.withAuth) map { resp =>
       resp.getStatusCode match {
-        // If the artifact is found, the Artifactory API returns 200, and an HTML page with a list of available files and versions for the artifact.
-        case 200 => {
-          log(s"Artifact $artifact exists")
-          true
-        }
-        // If not, we usually get 404, but in here we treat all non 200 response codes the same way.
-        case _ => {
-          log(s"Artifact $artifact not found on the remote repository ${credentials.host}/$repoKey")
-          false
+        case 200 | 204 => Success(s"Artifact '${artifact.path}' deleted successfully from ${credentials.host}")
+        case 404       => Success(s"Artifact '${artifact.path}' not found on ${credentials.host}. No action taken.")
+        case status => {
+          val err = new RuntimeException(
+            s"Artifact '${artifact.path}' could not be deleted from ${credentials.host}. Received status $status")
+          log(s"API call to $artifactUrl returned $status. Response body: \n${resp.getResponseBody}")
+          Failure(err)
         }
       }
     }
-  }
 
-  private def artifactUrl(artifact: ArtifactVersion) = {
-    s"https://${credentials.host}/artifactory/$repoKey/${artifact.path}/"
-  }
-
-  def deleteSafe(artifact: ArtifactVersion): Future[Response] = {
-    artifactExists(artifact) flatMap {
-      case true => deleteVersion(artifact)
-      case false => {
-        val err = new RuntimeException(s"Artifact $artifact does not exist.")
-        log(err.getMessage)
-        Future.failed(err)
-      }
-    }
-  }
-
-  def deleteVersion(artifact: ArtifactVersion): Future[Response] = {
-    val artifactLocation = artifactUrl(artifact)
-    log(s"Calling DELETE $artifactLocation")
-
-    execute(url(artifactLocation).DELETE.withAuth) flatMap { resp =>
-      log(s"Received status code ${resp.getStatusCode} when deleting artifact")
-      resp.getStatusCode match {
-        case 200 | 204 => Future.successful(resp)
-        case _ => {
-          val err = new RuntimeException(s"Expected status code to be 200 or 204, got ${resp.getStatusCode} instead. Status text: ${resp.getStatusText}; Response body: ${resp.getResponseBody}")
-          log(err.getMessage)
-          Future.failed(err)
-        }
-      }
-    }
+    Await.result(futureResponse, 15.seconds)
   }
 }

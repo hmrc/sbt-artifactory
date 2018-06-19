@@ -20,6 +20,7 @@ import dispatch.Res
 import sbt.Keys._
 import sbt._
 import scala.concurrent.Await
+import scala.util.{Failure, Success}
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
@@ -29,28 +30,28 @@ object SbtArtifactory extends sbt.AutoPlugin {
   val password = sys.env.getOrElse("ARTIFACTORY_PASSWORD", "")
 
   object autoImport {
-    val artifactoryUnpublish = taskKey[Unit]("artifactory_unpublish")
+    val unpublish = taskKey[Unit]("artifactory_unpublish")
   }
 
   import autoImport._
 
   val artifactoryCredentials: DirectCredentials = Credentials(
-    realm = "Artifactory Realm",
-    host = host,
+    realm    = "Artifactory Realm",
+    host     = host,
     userName = username,
-    passwd = password
+    passwd   = password
   ).asInstanceOf[DirectCredentials]
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri + "/hmrc-releases") },
     credentials += artifactoryCredentials,
-    artifactoryUnpublish := {
+    unpublish := {
       val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
         case Some((mj, mn)) => mj -> mn
-        case _ => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
+        case _              => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
       }
 
-      unpublish(
+      unpublishArtifact(
         streams.value.log,
         artifactoryCredentials,
         organization.value,
@@ -61,33 +62,30 @@ object SbtArtifactory extends sbt.AutoPlugin {
     }
   )
 
-  def unpublish(
+  def unpublishArtifact(
     logger: Logger,
     credentials: DirectCredentials,
     org: String,
     name: String,
     version: String,
     scalaVersion: String
-  ): Res = {
-    val sbtArtifactoryRepo = new ArtifactoryRepo(
-      credentials,
-      "hmrc-releases-local"
-    ) {
+  ): Unit = {
+    val sbtArtifactoryRepo = new ArtifactoryRepo(credentials, "hmrc-releases-local") {
       override def log(msg: String): Unit = logger.info(msg)
     }
 
-
-
-    logger.info(s"Trying to delete artifact for $org.$name.${version}_$scalaVersion")
+    logger.info(s"Deleting artifact: $org.$name.${version}_$scalaVersion")
 
     val artifact = ArtifactVersion(
       scalaVersion = scalaVersion,
-      org = org,
-      name = name,
-      version = version
+      org          = org,
+      name         = name,
+      version      = version
     )
 
-    import scala.concurrent.duration._
-    Await.result(sbtArtifactoryRepo.deleteSafe(artifact), 5.minutes)
+    sbtArtifactoryRepo.deleteVersion(artifact) match {
+      case Success(message)   => logger.info(message)
+      case Failure(exception) => logger.error(exception.getMessage)
+    }
   }
 }

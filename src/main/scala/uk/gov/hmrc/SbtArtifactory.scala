@@ -16,19 +16,76 @@
 
 package uk.gov.hmrc
 
+import dispatch.Res
 import sbt.Keys._
 import sbt._
+import scala.concurrent.Await
+import scala.util.{Failure, Success}
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
-  val uri = sys.env.getOrElse("ARTIFACTORY_URI", "")
-  val host = new URI(uri).getHost
+  val uri      = sys.env.getOrElse("ARTIFACTORY_URI", "")
+  val host     = new URI(uri).getHost
   val username = sys.env.getOrElse("ARTIFACTORY_USERNAME", "")
   val password = sys.env.getOrElse("ARTIFACTORY_PASSWORD", "")
 
-  override def projectSettings: Seq[Def.Setting[_]] =  Seq(
+  object autoImport {
+    val unpublish = taskKey[Unit]("artifactory_unpublish")
+  }
+
+  import autoImport._
+
+  val artifactoryCredentials: DirectCredentials = Credentials(
+    realm    = "Artifactory Realm",
+    host     = host,
+    userName = username,
+    passwd   = password
+  ).asInstanceOf[DirectCredentials]
+
+  override def projectSettings: Seq[Def.Setting[_]] = Seq(
     publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri + "/hmrc-releases") },
-    credentials += Credentials("Artifactory Realm", host, username, password)
+    credentials += artifactoryCredentials,
+    unpublish := {
+      val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((mj, mn)) => mj -> mn
+        case _              => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
+      }
+
+      unpublishArtifact(
+        streams.value.log,
+        artifactoryCredentials,
+        organization.value,
+        name.value,
+        version.value,
+        s"$major.$minor"
+      )
+    }
   )
 
+  def unpublishArtifact(
+    logger: Logger,
+    credentials: DirectCredentials,
+    org: String,
+    name: String,
+    version: String,
+    scalaVersion: String
+  ): Unit = {
+    val sbtArtifactoryRepo = new ArtifactoryRepo(credentials, "hmrc-releases-local") {
+      override def log(msg: String): Unit = logger.info(msg)
+    }
+
+    logger.info(s"Deleting artifact: $org.$name.${version}_$scalaVersion")
+
+    val artifact = ArtifactVersion(
+      scalaVersion = scalaVersion,
+      org          = org,
+      name         = name,
+      version      = version
+    )
+
+    sbtArtifactoryRepo.deleteVersion(artifact) match {
+      case Success(message)   => logger.info(message)
+      case Failure(exception) => logger.error(exception.getMessage)
+    }
+  }
 }

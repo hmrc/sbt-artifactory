@@ -16,10 +16,9 @@
 
 package uk.gov.hmrc
 
-import dispatch.Res
-import sbt.Keys._
+import sbt.Keys.{sbtPlugin, _}
 import sbt._
-import scala.concurrent.Await
+
 import scala.util.{Failure, Success}
 
 object SbtArtifactory extends sbt.AutoPlugin {
@@ -28,6 +27,8 @@ object SbtArtifactory extends sbt.AutoPlugin {
   val host     = new URI(uri).getHost
   val username = sys.env.getOrElse("ARTIFACTORY_USERNAME", "")
   val password = sys.env.getOrElse("ARTIFACTORY_PASSWORD", "")
+
+  def repository(sbtPlugin: Boolean) = if (sbtPlugin) "hmrc-sbt-plugin-releases-local" else "hmrc-releases-local"
 
   object autoImport {
     val unpublish = taskKey[Unit]("artifactory_unpublish")
@@ -42,25 +43,27 @@ object SbtArtifactory extends sbt.AutoPlugin {
     passwd   = password
   ).asInstanceOf[DirectCredentials]
 
-  override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri + "/hmrc-releases") },
-    credentials += artifactoryCredentials,
-    unpublish := {
-      val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((mj, mn)) => mj -> mn
-        case _              => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
-      }
+  override def projectSettings: Seq[Def.Setting[_]] =
+    Seq(
+      publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri + "/" + repository(sbtPlugin.value)) },
+      credentials += artifactoryCredentials,
+      unpublish := {
+        val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((mj, mn)) => mj -> mn
+          case _              => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
+        }
 
-      unpublishArtifact(
-        streams.value.log,
-        artifactoryCredentials,
-        organization.value,
-        name.value,
-        version.value,
-        s"$major.$minor"
-      )
-    }
-  )
+        unpublishArtifact(
+          streams.value.log,
+          artifactoryCredentials,
+          organization.value,
+          name.value,
+          version.value,
+          s"$major.$minor",
+          sbtPlugin.value
+        )
+      }
+    )
 
   def unpublishArtifact(
     logger: Logger,
@@ -68,9 +71,11 @@ object SbtArtifactory extends sbt.AutoPlugin {
     org: String,
     name: String,
     version: String,
-    scalaVersion: String
+    scalaVersion: String,
+    sbtPlugin: Boolean
   ): Unit = {
-    val sbtArtifactoryRepo = new ArtifactoryRepo(credentials, "hmrc-releases-local") {
+
+    val sbtArtifactoryRepo = new ArtifactoryRepo(credentials, repository(sbtPlugin)) {
       override def log(msg: String): Unit = logger.info(msg)
     }
 

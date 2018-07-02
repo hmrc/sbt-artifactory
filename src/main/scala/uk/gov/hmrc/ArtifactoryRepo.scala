@@ -43,7 +43,7 @@ case class ArtifactVersion(
   def path: String = s"${org.dotsToSlashes}/${name.dotsToSlashes}_$scalaVersion/$version"
 }
 
-abstract class ArtifactoryRepo(credentials: DirectCredentials, repoKey: String) {
+abstract class ArtifactoryRepo(credentials: DirectCredentials, repositoryName: String) {
 
   def execute(request: Req): Future[Response] =
     Http(request)
@@ -59,7 +59,7 @@ abstract class ArtifactoryRepo(credentials: DirectCredentials, repoKey: String) 
   }
 
   def deleteVersion(artifact: ArtifactVersion): Try[String] = {
-    val artifactUrl = s"https://${credentials.host}/artifactory/$repoKey/${artifact.path}/"
+    val artifactUrl = s"https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
     log(s"Calling DELETE $artifactUrl")
 
     val futureResponse = execute(url(artifactUrl).DELETE.withAuth) map { resp =>

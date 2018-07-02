@@ -24,20 +24,19 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   override def trigger = allRequirements
 
-  private lazy val uri            = findEnvVariable("ARTIFACTORY_URI")
-  private lazy val username       = findEnvVariable("ARTIFACTORY_USERNAME")
-  private lazy val password       = findEnvVariable("ARTIFACTORY_PASSWORD")
-  private lazy val repositoryName = findEnvVariable("REPOSITORY_NAME")
-  private lazy val artifactoryCredentials: DirectCredentials =
-    Credentials(
-      realm    = "Artifactory Realm",
-      host     = new URI(uri).getHost,
-      userName = username,
-      passwd   = password
-    ).asInstanceOf[DirectCredentials]
-
-  private def findEnvVariable(key: String): String =
-    sys.env.getOrElse(key, sys.error(s"'$key' environment variable not set"))
+  private val uriEnvKey                = "ARTIFACTORY_URI"
+  private val repositoryNameEnvKey     = "REPOSITORY_NAME"
+  private val usernameEnvKey           = "ARTIFACTORY_USERNAME"
+  private val passwordEnvKey           = "ARTIFACTORY_PASSWORD"
+  private lazy val maybeUri            = findEnvVariable(uriEnvKey)
+  private lazy val maybeUsername       = findEnvVariable(usernameEnvKey)
+  private lazy val maybePassword       = findEnvVariable(passwordEnvKey)
+  private lazy val maybeRepositoryName = findEnvVariable(repositoryNameEnvKey)
+  private lazy val maybeArtifactoryCredentials = for {
+    uri      <- maybeUri
+    username <- maybeUsername
+    password <- maybePassword
+  } yield directCredentials(uri, username, password)
 
   object autoImport {
     val unpublish = taskKey[Unit]("artifactory_unpublish")
@@ -46,8 +45,8 @@ object SbtArtifactory extends sbt.AutoPlugin {
   import autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    publishTo := Some("Artifactory Realm" at uri + "/" + repositoryName),
-    credentials += artifactoryCredentials,
+    publishTo := maybePublishToResolver,
+    credentials ++= maybeArtifactoryCredentials.toSeq,
     unpublish := {
       val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
         case Some((mj, mn)) => mj -> mn
@@ -56,7 +55,6 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
       unpublishArtifact(
         streams.value.log,
-        artifactoryCredentials,
         organization.value,
         name.value,
         version.value,
@@ -65,15 +63,29 @@ object SbtArtifactory extends sbt.AutoPlugin {
     }
   )
 
+  private lazy val maybePublishToResolver = for {
+    uri            <- maybeUri
+    repositoryName <- maybeRepositoryName
+  } yield "Artifactory Realm" at uri + "/" + repositoryName
+
   def unpublishArtifact(
     logger: Logger,
-    credentials: DirectCredentials,
     org: String,
     name: String,
     version: String,
     scalaVersion: String
   ): Unit = {
-    val sbtArtifactoryRepo = new ArtifactoryRepo(credentials, repositoryName) {
+
+    val artifactoryCredentials = directCredentials(
+      getOrError(maybeUri, repositoryNameEnvKey),
+      getOrError(maybeUsername, usernameEnvKey),
+      getOrError(maybePassword, passwordEnvKey)
+    )
+
+    val sbtArtifactoryRepo = new ArtifactoryRepo(
+      artifactoryCredentials,
+      getOrError(maybeRepositoryName, repositoryNameEnvKey)
+    ) {
       override def log(msg: String): Unit = logger.info(msg)
     }
 
@@ -91,4 +103,18 @@ object SbtArtifactory extends sbt.AutoPlugin {
       case Failure(exception) => logger.error(exception.getMessage)
     }
   }
+
+  private def findEnvVariable(key: String): Option[String] = sys.env.get(key)
+
+  private def getOrError(option: Option[String], keyName: String) = option.getOrElse {
+    sys.error(s"No $keyName environment variable found")
+  }
+
+  private def directCredentials(uri: String, userName: String, password: String): DirectCredentials =
+    Credentials(
+      realm    = "Artifactory Realm",
+      host     = new URI(uri).getHost,
+      userName = userName,
+      passwd   = password
+    ).asInstanceOf[DirectCredentials]
 }

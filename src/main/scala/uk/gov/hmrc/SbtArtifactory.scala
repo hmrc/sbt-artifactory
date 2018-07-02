@@ -16,19 +16,28 @@
 
 package uk.gov.hmrc
 
-import sbt.Keys.{sbtPlugin, _}
+import sbt.Keys._
 import sbt._
-
 import scala.util.{Failure, Success}
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
-  val uri      = sys.env.getOrElse("ARTIFACTORY_URI", "")
-  val host     = new URI(uri).getHost
-  val username = sys.env.getOrElse("ARTIFACTORY_USERNAME", "")
-  val password = sys.env.getOrElse("ARTIFACTORY_PASSWORD", "")
+  override def trigger = allRequirements
 
-  def repository(sbtPlugin: Boolean) = if (sbtPlugin) "hmrc-sbt-plugin-releases-local" else "hmrc-releases-local"
+  private lazy val uri            = findEnvVariable("ARTIFACTORY_URI")
+  private lazy val username       = findEnvVariable("ARTIFACTORY_USERNAME")
+  private lazy val password       = findEnvVariable("ARTIFACTORY_PASSWORD")
+  private lazy val repositoryName = findEnvVariable("REPOSITORY_NAME")
+  private lazy val artifactoryCredentials: DirectCredentials =
+    Credentials(
+      realm    = "Artifactory Realm",
+      host     = new URI(uri).getHost,
+      userName = username,
+      passwd   = password
+    ).asInstanceOf[DirectCredentials]
+
+  private def findEnvVariable(key: String): String =
+    sys.env.getOrElse(key, sys.error(s"'$key' environment variable not set"))
 
   object autoImport {
     val unpublish = taskKey[Unit]("artifactory_unpublish")
@@ -36,34 +45,25 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   import autoImport._
 
-  val artifactoryCredentials: DirectCredentials = Credentials(
-    realm    = "Artifactory Realm",
-    host     = host,
-    userName = username,
-    passwd   = password
-  ).asInstanceOf[DirectCredentials]
-
-  override def projectSettings: Seq[Def.Setting[_]] =
-    Seq(
-      publishTo := { if (uri.isEmpty) None else Some("Artifactory Realm" at uri + "/" + repository(sbtPlugin.value)) },
-      credentials += artifactoryCredentials,
-      unpublish := {
-        val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((mj, mn)) => mj -> mn
-          case _              => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
-        }
-
-        unpublishArtifact(
-          streams.value.log,
-          artifactoryCredentials,
-          organization.value,
-          name.value,
-          version.value,
-          s"$major.$minor",
-          sbtPlugin.value
-        )
+  override def projectSettings: Seq[Def.Setting[_]] = Seq(
+    publishTo := Some("Artifactory Realm" at uri + "/" + repositoryName),
+    credentials += artifactoryCredentials,
+    unpublish := {
+      val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((mj, mn)) => mj -> mn
+        case _              => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
       }
-    )
+
+      unpublishArtifact(
+        streams.value.log,
+        artifactoryCredentials,
+        organization.value,
+        name.value,
+        version.value,
+        s"$major.$minor"
+      )
+    }
+  )
 
   def unpublishArtifact(
     logger: Logger,
@@ -71,11 +71,9 @@ object SbtArtifactory extends sbt.AutoPlugin {
     org: String,
     name: String,
     version: String,
-    scalaVersion: String,
-    sbtPlugin: Boolean
+    scalaVersion: String
   ): Unit = {
-
-    val sbtArtifactoryRepo = new ArtifactoryRepo(credentials, repository(sbtPlugin)) {
+    val sbtArtifactoryRepo = new ArtifactoryRepo(credentials, repositoryName) {
       override def log(msg: String): Unit = logger.info(msg)
     }
 

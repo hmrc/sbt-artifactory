@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc
 
+import dispatch.Http
 import sbt.Keys._
 import sbt._
 import scala.util.{Failure, Success}
@@ -84,11 +85,11 @@ object SbtArtifactory extends sbt.AutoPlugin {
     )
 
     val sbtArtifactoryRepo = new ArtifactoryRepo(
+      Http,
+      logger,
       artifactoryCredentials,
       getOrError(maybeRepositoryName, repositoryNameEnvKey)
-    ) {
-      override def log(msg: String): Unit = logger.info(msg)
-    }
+    )
 
     logger.info(s"Deleting artifact: $org.$name.${version}_$scalaVersion")
 

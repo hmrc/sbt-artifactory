@@ -19,11 +19,16 @@ package uk.gov.hmrc
 import dispatch.Http
 import sbt.Keys._
 import sbt._
+import scala.concurrent.Await
+import scala.concurrent.duration._
+import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
   override def trigger = allRequirements
+
+  private val distributionTimeout = 1 minute
 
   private val uriEnvKey                = "ARTIFACTORY_URI"
   private val repositoryNameEnvKey     = "REPOSITORY_NAME"
@@ -39,8 +44,15 @@ object SbtArtifactory extends sbt.AutoPlugin {
     password <- maybePassword
   } yield directCredentials(uri, username, password)
 
+  private def artifactoryCredentials = directCredentials(
+    getOrError(maybeUri, repositoryNameEnvKey),
+    getOrError(maybeUsername, usernameEnvKey),
+    getOrError(maybePassword, passwordEnvKey)
+  )
+
   object autoImport {
-    val unpublish = taskKey[Unit]("artifactory_unpublish")
+    val unpublish           = taskKey[Unit]("artifactory_unpublish")
+    val distributeToBintray = taskKey[Unit]("distribute_to_bintray")
   }
 
   import autoImport._
@@ -50,57 +62,60 @@ object SbtArtifactory extends sbt.AutoPlugin {
     publishTo := maybePublishToResolver,
     credentials ++= maybeArtifactoryCredentials.toSeq,
     unpublish := {
-      val (major, minor) = CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((mj, mn)) => mj -> mn
-        case _              => throw new Exception(s"Unable to extract Scala version from ${scalaVersion.value}")
-      }
-
       unpublishArtifact(
         streams.value.log,
-        organization.value,
-        name.value,
-        version.value,
-        s"$major.$minor"
+        artifact(organization.value, name.value, version.value, scalaVersion.value)
+      )
+    },
+    distributeToBintray := {
+      val logger = streams.value.log
+      val artifactoryConnector = new ArtifactoryConnector(
+        Http,
+        logger,
+        artifactoryCredentials,
+        getOrError(maybeRepositoryName, repositoryNameEnvKey)
+      )
+      val bintrayDistributor = new BintrayDistributor(artifactoryConnector, logger)
+
+      Await.result(
+        bintrayDistributor.distribute(artifact(organization.value, name.value, version.value, scalaVersion.value)),
+        atMost = distributionTimeout
       )
     }
   )
+
+  private def artifact(organization: String, name: String, version: String, scalaVersion: String) = {
+    val crossScalaVersion = CrossVersion.partialVersion(scalaVersion) match {
+      case Some((major, minor)) => s"$major.$minor"
+      case _                    => throw new Exception(s"Unable to extract Scala version from $scalaVersion")
+    }
+    ArtifactVersion(
+      scalaVersion = crossScalaVersion,
+      org          = organization,
+      name         = name,
+      version      = version
+    )
+  }
 
   private lazy val maybePublishToResolver = for {
     uri            <- maybeUri
     repositoryName <- maybeRepositoryName
   } yield "Artifactory Realm" at uri + "/" + repositoryName
 
-  def unpublishArtifact(
+  private def unpublishArtifact(
     logger: Logger,
-    org: String,
-    name: String,
-    version: String,
-    scalaVersion: String
-  ): Unit = {
-
-    val artifactoryCredentials = directCredentials(
-      getOrError(maybeUri, repositoryNameEnvKey),
-      getOrError(maybeUsername, usernameEnvKey),
-      getOrError(maybePassword, passwordEnvKey)
-    )
-
-    val sbtArtifactoryRepo = new ArtifactoryRepo(
+    artifact: ArtifactVersion
+  ) = {
+    val artifactoryConnector = new ArtifactoryConnector(
       Http,
       logger,
       artifactoryCredentials,
       getOrError(maybeRepositoryName, repositoryNameEnvKey)
     )
 
-    logger.info(s"Deleting artifact: $org.$name.${version}_$scalaVersion")
+    logger.info(s"Deleting artifact: $artifact")
 
-    val artifact = ArtifactVersion(
-      scalaVersion = scalaVersion,
-      org          = org,
-      name         = name,
-      version      = version
-    )
-
-    sbtArtifactoryRepo.deleteVersion(artifact) match {
+    artifactoryConnector.deleteVersion(artifact) match {
       case Success(message)   => logger.info(message)
       case Failure(exception) => logger.error(exception.getMessage)
     }

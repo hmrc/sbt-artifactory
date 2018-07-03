@@ -16,8 +16,9 @@ lazy val project = Project(pluginName, file("."))
       Resolver.ivyStylePatterns),
     libraryDependencies ++= Seq(
       "net.databinder.dispatch" %% "dispatch-core" % "0.11.4",
-      "org.scalatest"           %% "scalatest"     % "3.0.4"      % "test",
-      "org.mockito"             %  "mockito-all"   % "1.10.19"    % "test",
-      "org.pegdown"             %  "pegdown"       % "1.6.0"      % "test"
+      "com.typesafe.play"       %% "play-json"     % "2.6.9",
+      "org.scalatest"           %% "scalatest"     % "3.0.4"      % Test,
+      "org.mockito"             %  "mockito-all"   % "1.10.19"    % Test,
+      "org.pegdown"             %  "pegdown"       % "1.6.0"      % Test
     )
   )

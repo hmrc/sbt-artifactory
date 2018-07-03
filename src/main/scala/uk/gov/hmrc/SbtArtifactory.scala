@@ -45,6 +45,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
   import autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
+    publishMavenStyle := { if (sbtPlugin.value) false else publishMavenStyle.value },
     publishTo := maybePublishToResolver,
     credentials ++= maybeArtifactoryCredentials.toSeq,
     unpublish := {

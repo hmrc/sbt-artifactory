@@ -17,6 +17,7 @@ lazy val project = Project(pluginName, file("."))
     libraryDependencies ++= Seq(
       "net.databinder.dispatch" %% "dispatch-core" % "0.11.4",
       "com.typesafe.play"       %% "play-json"     % "2.6.9",
+      "org.joda"                % "joda-convert"   % "2.1",
       "org.scalatest"           %% "scalatest"     % "3.0.4"      % Test,
       "org.mockito"             %  "mockito-all"   % "1.10.19"    % Test,
       "org.pegdown"             %  "pegdown"       % "1.6.0"      % Test

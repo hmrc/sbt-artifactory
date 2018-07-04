@@ -84,7 +84,14 @@ class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, rep
           case 200 =>
             s"${artifactsPaths.mkString("", "\n", "\n")}distributed to '$targetRepository' repository"
           case statusCode =>
-            throw new RuntimeException(s"POST to $distributeUrl returned with status code [$statusCode]")
+            val errorMessagePart = (Json.parse(response.getResponseBody()) \ "message")
+              .asOpt[String]
+              .map(m => s" and message: $m")
+              .getOrElse("")
+
+            throw new RuntimeException(
+              s"POST to $distributeUrl returned with status code [$statusCode]$errorMessagePart"
+            )
         }
       }
   }

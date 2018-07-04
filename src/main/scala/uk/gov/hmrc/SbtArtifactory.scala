@@ -75,7 +75,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
   private[hmrc] def artifactoryRepoKey(sbtPlugin: Boolean, publicArtifact: Boolean): String =
     (sbtPlugin, publicArtifact) match {
       case (false, false) => "hmrc-releases-local"
-      case (false, true)  => "hmrc-public-release-local"
+      case (false, true)  => "hmrc-public-releases-local"
       case (true, false)  => "hmrc-sbt-plugin-releases-local"
       case (true, true)   => "hmrc-public-sbt-plugin-releases-local"
     }

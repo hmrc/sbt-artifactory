@@ -205,14 +205,24 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
       verifyZeroInteractions(httpClient)
     }
 
-    "throw an exception if the status code is not 200" in new Setup {
+    "throw an exception with an error message if the status code is not 200" in new Setup {
       when(response.getStatusCode).thenReturn(500)
+
+      val message = "The following artifacts could not be distributed: artifact 1, artifact 2"
+
+      when(response.getResponseBody).thenReturn(
+        Json
+          .obj(
+            "message" -> message
+          )
+          .toString
+      )
 
       val url = s"https://${credentials.host}/artifactory/api/distribute"
 
       intercept[RuntimeException] {
         repo.distributeToBintray(Seq("some-path")).awaitResult
-      }.getMessage shouldBe s"POST to $url returned with status code [500]"
+      }.getMessage shouldBe s"POST to $url returned with status code [500] and message: $message"
     }
   }
 

@@ -30,14 +30,16 @@ class BintrayDistributor(artifactoryConnector: ArtifactoryConnector, logger: Log
         distributionResult <- artifactoryConnector.distributeToBintray(artifactsPaths)
         _ = logger.info(distributionResult)
       } yield ()
-    else
+    else {
+      logger.info(s"$artifact is private. Nothing to distribute to Bintray")
       Future.successful(())
+    }
 
   private def logFetchedArtifactsPaths(artifact: ArtifactDescription, paths: Seq[String]): Unit =
     if (paths.isEmpty)
-      logger.info(s"No $artifact artifacts paths found")
+      logger.warn(s"No paths found in Artifactory for $artifact")
     else {
-      logger.info(s"Found $artifact artifacts paths:")
+      logger.info(s"Artifacts paths for $artifact to be distributed to Bintray:")
       paths.foreach(logger.info(_))
     }
 }

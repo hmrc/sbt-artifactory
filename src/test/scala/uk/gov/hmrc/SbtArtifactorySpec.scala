@@ -17,20 +17,24 @@
 package uk.gov.hmrc
 
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{Matchers, WordSpec}
 
-class SbtArtifactorySpec extends FlatSpec with Matchers with TableDrivenPropertyChecks {
-  "getArtifactoryRepoKey" should "return the repo key based on the 'sbtPlugin' and 'publicArtifact'" in {
-    val scenarios =
-      Table(
-        ("sbtPlugin", "publicArtifact", "expectedRepoKey"),
-        (false, false, "hmrc-releases-local"),
-        (false, true, "hmrc-public-release-local"),
-        (true, false, "hmrc-sbt-plugin-releases-local"),
-        (true, true, "hmrc-public-sbt-plugin-releases-local")
-      )
+class SbtArtifactorySpec extends WordSpec with Matchers with TableDrivenPropertyChecks {
+
+  "artifactoryRepoKey" should {
+
+    val scenarios = Table(
+      ("sbtPlugin", "publicArtifact", "expectedRepoKey"),
+      (false, false, "hmrc-releases-local"),
+      (false, true, "hmrc-public-releases-local"),
+      (true, false, "hmrc-sbt-plugin-releases-local"),
+      (true, true, "hmrc-public-sbt-plugin-releases-local")
+    )
+
     forAll(scenarios) { (sbtPlugin, publicArtifact, expectedRepoKey) =>
-      SbtArtifactory.artifactoryRepoKey(sbtPlugin, publicArtifact) shouldBe expectedRepoKey
+      s"return '$expectedRepoKey' repository key when sbtPlugin=$sbtPlugin and publicArtifact=$publicArtifact" in {
+        SbtArtifactory.artifactoryRepoKey(sbtPlugin, publicArtifact) shouldBe expectedRepoKey
+      }
     }
   }
 }

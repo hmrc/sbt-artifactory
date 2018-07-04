@@ -27,8 +27,15 @@ import scala.concurrent.{Await, Future}
 class BintrayDistributorSpec extends WordSpec with MockitoSugar {
 
   "distributeToBintray" should {
-    "fetch list of artifacts paths and distribute them to Bintray" in new Setup {
-      val artifactDescription = ArtifactDescription("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")
+
+    "fetch list of artifacts paths and distribute them to Bintray for public artifacts" in new Setup {
+      val artifactDescription = ArtifactDescription(
+        scalaVersion   = "2.11",
+        org            = "uk.gov.hmrc",
+        name           = "my-artifact",
+        version        = "0.1.0",
+        publicArtifact = true
+      )
 
       val artifactsPaths = Seq("path1", "path2")
       when(artifactoryConnector.fetchArtifactsPaths(artifactDescription))
@@ -36,11 +43,25 @@ class BintrayDistributorSpec extends WordSpec with MockitoSugar {
       when(artifactoryConnector.distributeToBintray(artifactsPaths))
         .thenReturn(Future.successful("a message"))
 
-      Await.result(bintrayDistributor.distribute(artifactDescription), Duration.Inf)
+      Await.result(bintrayDistributor.distributePublicArtifact(artifactDescription), Duration.Inf)
 
       verify(artifactoryConnector).fetchArtifactsPaths(artifactDescription)
       verify(artifactoryConnector).distributeToBintray(artifactsPaths)
       verifyNoMoreInteractions(artifactoryConnector)
+    }
+
+    "do nothing for private artifacts" in new Setup {
+      val artifactDescription = ArtifactDescription(
+        scalaVersion   = "2.11",
+        org            = "uk.gov.hmrc",
+        name           = "my-artifact",
+        version        = "0.1.0",
+        publicArtifact = false
+      )
+
+      Await.result(bintrayDistributor.distributePublicArtifact(artifactDescription), Duration.Inf)
+
+      verifyZeroInteractions(artifactoryConnector)
     }
   }
 

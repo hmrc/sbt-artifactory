@@ -30,6 +30,7 @@ import scala.concurrent.ExecutionContext.Implicits.{global => executionContext}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
+import scala.util.Random
 
 class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
@@ -222,7 +223,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
       userName = "username",
       passwd   = "password"
     ).asInstanceOf[DirectCredentials]
-    val artifact = ArtifactDescription("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")
+    val artifact = ArtifactDescription("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0", Random.nextBoolean())
 
     val httpClient = mock[Http]
 

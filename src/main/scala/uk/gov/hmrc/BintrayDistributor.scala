@@ -20,15 +20,18 @@ import sbt.Logger
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class BintrayDistributor(artifactoryRepo: ArtifactoryConnector, logger: Logger) {
+class BintrayDistributor(artifactoryConnector: ArtifactoryConnector, logger: Logger) {
 
-  def distribute(artifact: ArtifactDescription): Future[Unit] =
-    for {
-      artifactsPaths <- artifactoryRepo.fetchArtifactsPaths(artifact)
-      _ = logFetchedArtifactsPaths(artifact, artifactsPaths)
-      distributionResult <- artifactoryRepo.distributeToBintray(artifactsPaths)
-      _ = logger.info(distributionResult)
-    } yield ()
+  def distributePublicArtifact(artifact: ArtifactDescription): Future[Unit] =
+    if (artifact.publicArtifact)
+      for {
+        artifactsPaths <- artifactoryConnector.fetchArtifactsPaths(artifact)
+        _ = logFetchedArtifactsPaths(artifact, artifactsPaths)
+        distributionResult <- artifactoryConnector.distributeToBintray(artifactsPaths)
+        _ = logger.info(distributionResult)
+      } yield ()
+    else
+      Future.successful(())
 
   private def logFetchedArtifactsPaths(artifact: ArtifactDescription, paths: Seq[String]): Unit =
     if (paths.isEmpty)

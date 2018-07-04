@@ -56,7 +56,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     publicArtifact := false,
     artifactDescription := ArtifactDescription
-      .withCrossScalaVersion(organization.value, name.value, version.value, scalaVersion.value),
+      .withCrossScalaVersion(organization.value, name.value, version.value, scalaVersion.value, publicArtifact.value),
     repoKey := artifactoryRepoKey(sbtPlugin.value, publicArtifact.value),
     publishTo := maybeUri.map(uri => "Artifactory Realm" at uri + "/" + repoKey.value),
     credentials ++= maybeArtifactoryCredentials.toSeq,
@@ -68,7 +68,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
       },
     distributeToBintray :=
       new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
-        .distribute(artifactDescription.value)
+        .distributePublicArtifact(artifactDescription.value)
         .awaitResult
   )
 

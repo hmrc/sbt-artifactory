@@ -22,7 +22,8 @@ case class ArtifactDescription(
   scalaVersion: String,
   org: String,
   name: String,
-  version: String
+  version: String,
+  publicArtifact: Boolean
 ) {
 
   lazy val path: String = s"${org.dotsToSlashes}/${name}_$scalaVersion/$version"
@@ -36,17 +37,23 @@ case class ArtifactDescription(
 
 object ArtifactDescription {
 
-  def withCrossScalaVersion(org: String, name: String, version: String, scalaVersion: String): ArtifactDescription = {
+  def withCrossScalaVersion(
+    org: String,
+    name: String,
+    version: String,
+    scalaVersion: String,
+    publicArtifact: Boolean): ArtifactDescription = {
     val crossScalaVersion = CrossVersion.partialVersion(scalaVersion) match {
       case Some((major, minor)) => s"$major.$minor"
       case _                    => throw new Exception(s"Unable to extract Scala version from $scalaVersion")
     }
 
     ArtifactDescription(
-      scalaVersion = crossScalaVersion,
-      org          = org,
-      name         = name,
-      version      = version
+      crossScalaVersion,
+      org,
+      name,
+      version,
+      publicArtifact
     )
   }
 }

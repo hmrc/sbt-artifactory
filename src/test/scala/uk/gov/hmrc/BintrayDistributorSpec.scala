@@ -28,17 +28,17 @@ class BintrayDistributorSpec extends WordSpec with MockitoSugar {
 
   "distributeToBintray" should {
     "fetch list of artifacts paths and distribute them to Bintray" in new Setup {
-      val artifactVersion = ArtifactVersion("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")
+      val artifactDescription = ArtifactDescription("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0")
 
       val artifactsPaths = Seq("path1", "path2")
-      when(artifactoryConnector.fetchArtifactsPaths(artifactVersion))
+      when(artifactoryConnector.fetchArtifactsPaths(artifactDescription))
         .thenReturn(Future.successful(artifactsPaths))
       when(artifactoryConnector.distributeToBintray(artifactsPaths))
         .thenReturn(Future.successful("a message"))
 
-      Await.result(bintrayDistributor.distribute(artifactVersion), Duration.Inf)
+      Await.result(bintrayDistributor.distribute(artifactDescription), Duration.Inf)
 
-      verify(artifactoryConnector).fetchArtifactsPaths(artifactVersion)
+      verify(artifactoryConnector).fetchArtifactsPaths(artifactDescription)
       verify(artifactoryConnector).distributeToBintray(artifactsPaths)
       verifyNoMoreInteractions(artifactoryConnector)
     }

@@ -19,10 +19,9 @@ package uk.gov.hmrc
 import dispatch.Http
 import sbt.Keys._
 import sbt._
-import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
-import scala.util.{Failure, Success}
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
@@ -30,98 +29,66 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   private val distributionTimeout = 1 minute
 
-  private val uriEnvKey                = "ARTIFACTORY_URI"
-  private val repositoryNameEnvKey     = "REPOSITORY_NAME"
-  private val usernameEnvKey           = "ARTIFACTORY_USERNAME"
-  private val passwordEnvKey           = "ARTIFACTORY_PASSWORD"
-  private lazy val maybeUri            = findEnvVariable(uriEnvKey)
-  private lazy val maybeUsername       = findEnvVariable(usernameEnvKey)
-  private lazy val maybePassword       = findEnvVariable(passwordEnvKey)
-  private lazy val maybeRepositoryName = findEnvVariable(repositoryNameEnvKey)
+  private val uriEnvKey          = "ARTIFACTORY_URI"
+  private val usernameEnvKey     = "ARTIFACTORY_USERNAME"
+  private val passwordEnvKey     = "ARTIFACTORY_PASSWORD"
+  private lazy val maybeUri      = sys.env.get(uriEnvKey)
+  private lazy val maybeUsername = sys.env.get(usernameEnvKey)
+  private lazy val maybePassword = sys.env.get(passwordEnvKey)
   private lazy val maybeArtifactoryCredentials = for {
     uri      <- maybeUri
     username <- maybeUsername
     password <- maybePassword
   } yield directCredentials(uri, username, password)
 
-  private def artifactoryCredentials = directCredentials(
-    getOrError(maybeUri, repositoryNameEnvKey),
-    getOrError(maybeUsername, usernameEnvKey),
-    getOrError(maybePassword, passwordEnvKey)
-  )
-
   object autoImport {
-    val unpublish           = taskKey[Unit]("artifactory_unpublish")
-    val distributeToBintray = taskKey[Unit]("distribute_to_bintray")
+    val unpublish = taskKey[Unit]("Unpublish from Artifactory.")
+    val distributeToBintray =
+      taskKey[Unit]("Distributes artifacts from an Artifactory Distribution Repository to Bintray")
+    val publicArtifact =
+      settingKey[Boolean]("Indicates whether an artifact is public and should be distributed or private")
+    val repoKey             = settingKey[String]("Artifactory repo key")
+    val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
   }
 
   import autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    publishMavenStyle := { if (sbtPlugin.value) false else publishMavenStyle.value },
-    publishTo := maybePublishToResolver,
+    publicArtifact := false,
+    artifactDescription := ArtifactDescription
+      .withCrossScalaVersion(organization.value, name.value, version.value, scalaVersion.value),
+    repoKey := artifactoryRepoKey(sbtPlugin.value, publicArtifact.value),
+    publishTo := maybeUri.map(uri => "Artifactory Realm" at uri + "/" + repoKey.value),
     credentials ++= maybeArtifactoryCredentials.toSeq,
-    unpublish := {
-      unpublishArtifact(
-        streams.value.log,
-        artifact(organization.value, name.value, version.value, scalaVersion.value)
-      )
-    },
-    distributeToBintray := {
-      val logger = streams.value.log
-      val artifactoryConnector = new ArtifactoryConnector(
-        Http,
-        logger,
-        artifactoryCredentials,
-        getOrError(maybeRepositoryName, repositoryNameEnvKey)
-      )
-      val bintrayDistributor = new BintrayDistributor(artifactoryConnector, logger)
-
-      Await.result(
-        bintrayDistributor.distribute(artifact(organization.value, name.value, version.value, scalaVersion.value)),
-        atMost = distributionTimeout
-      )
-    }
+    unpublish :=
+      streams.value.log.info {
+        artifactoryConnector(repoKey.value)
+          .deleteVersion(artifactDescription.value)
+          .awaitResult
+      },
+    distributeToBintray :=
+      new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
+        .distribute(artifactDescription.value)
+        .awaitResult
   )
 
-  private def artifact(organization: String, name: String, version: String, scalaVersion: String) = {
-    val crossScalaVersion = CrossVersion.partialVersion(scalaVersion) match {
-      case Some((major, minor)) => s"$major.$minor"
-      case _                    => throw new Exception(s"Unable to extract Scala version from $scalaVersion")
+  private[hmrc] def artifactoryRepoKey(sbtPlugin: Boolean, publicArtifact: Boolean): String =
+    (sbtPlugin, publicArtifact) match {
+      case (false, false) => "hmrc-releases-local"
+      case (false, true)  => "hmrc-public-release-local"
+      case (true, false)  => "hmrc-sbt-plugin-releases-local"
+      case (true, true)   => "hmrc-public-sbt-plugin-releases-local"
     }
-    ArtifactVersion(
-      scalaVersion = crossScalaVersion,
-      org          = organization,
-      name         = name,
-      version      = version
-    )
-  }
 
-  private lazy val maybePublishToResolver = for {
-    uri            <- maybeUri
-    repositoryName <- maybeRepositoryName
-  } yield "Artifactory Realm" at uri + "/" + repositoryName
-
-  private def unpublishArtifact(
-    logger: Logger,
-    artifact: ArtifactVersion
-  ) = {
-    val artifactoryConnector = new ArtifactoryConnector(
-      Http,
-      logger,
-      artifactoryCredentials,
-      getOrError(maybeRepositoryName, repositoryNameEnvKey)
-    )
-
-    logger.info(s"Deleting artifact: $artifact")
-
-    artifactoryConnector.deleteVersion(artifact) match {
-      case Success(message)   => logger.info(message)
-      case Failure(exception) => logger.error(exception.getMessage)
-    }
-  }
-
-  private def findEnvVariable(key: String): Option[String] = sys.env.get(key)
+  private def artifactoryConnector = new ArtifactoryConnector(
+    Http,
+    directCredentials(
+      getOrError(maybeUri, uriEnvKey),
+      getOrError(maybeUsername, usernameEnvKey),
+      getOrError(maybePassword, passwordEnvKey)
+    ),
+    _: String
+  )
 
   private def getOrError(option: Option[String], keyName: String) = option.getOrElse {
     sys.error(s"No $keyName environment variable found")
@@ -134,4 +101,8 @@ object SbtArtifactory extends sbt.AutoPlugin {
       userName = userName,
       passwd   = password
     ).asInstanceOf[DirectCredentials]
+
+  private implicit class FutureOps[T](future: Future[T]) {
+    def awaitResult: T = Await.result(future, distributionTimeout)
+  }
 }

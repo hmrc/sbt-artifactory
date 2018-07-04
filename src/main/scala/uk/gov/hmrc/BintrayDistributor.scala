@@ -22,7 +22,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class BintrayDistributor(artifactoryRepo: ArtifactoryConnector, logger: Logger) {
 
-  def distribute(artifact: ArtifactVersion): Future[Unit] =
+  def distribute(artifact: ArtifactDescription): Future[Unit] =
     for {
       artifactsPaths <- artifactoryRepo.fetchArtifactsPaths(artifact)
       _ = logFetchedArtifactsPaths(artifact, artifactsPaths)
@@ -30,7 +30,7 @@ class BintrayDistributor(artifactoryRepo: ArtifactoryConnector, logger: Logger) 
       _ = logger.info(distributionResult)
     } yield ()
 
-  private def logFetchedArtifactsPaths(artifact: ArtifactVersion, paths: Seq[String]): Unit =
+  private def logFetchedArtifactsPaths(artifact: ArtifactDescription, paths: Seq[String]): Unit =
     if (paths.isEmpty)
       logger.info(s"No $artifact artifacts paths found")
     else {

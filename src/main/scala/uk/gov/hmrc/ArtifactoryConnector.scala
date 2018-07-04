@@ -21,55 +21,33 @@ import dispatch.Defaults._
 import dispatch._
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import play.api.libs.json.{Json, Reads}
-import sbt.{DirectCredentials, Logger}
-import scala.concurrent.Await
-import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
+import sbt.DirectCredentials
 
-case class ArtifactVersion(
-  scalaVersion: String,
-  org: String,
-  name: String,
-  version: String
-) {
-
-  lazy val path: String = s"${org.dotsToSlashes}/${name}_$scalaVersion/$version"
-
-  override lazy val toString: String = s"$org.${name}_$scalaVersion:$version"
-
-  private implicit class UrlDotPadding(val str: String) {
-    def dotsToSlashes: String = str.replaceAll("""\.""", "/")
-  }
-}
-
-class ArtifactoryConnector(httpClient: Http, logger: Logger, credentials: DirectCredentials, repositoryName: String) {
+class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, repositoryName: String) {
 
   private val targetRepository = "bintray-distribution"
   private val encodedCredentials: String =
     Base64.getEncoder.encodeToString(s"${credentials.userName}:${credentials.passwd}".getBytes())
   private val authHeader = s"Basic $encodedCredentials"
 
-  def deleteVersion(artifact: ArtifactVersion): Try[String] = {
+  def deleteVersion(artifact: ArtifactDescription): Future[String] = {
     val artifactUrl = s"https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
-    logger.info(s"Calling DELETE $artifactUrl")
 
-    val futureResponse = httpClient(url(artifactUrl).DELETE.withAuth) map { resp =>
-      resp.getStatusCode match {
-        case 200 | 204 => Success(s"Artifact '${artifact.path}' deleted successfully from ${credentials.host}")
-        case 404       => Success(s"Artifact '${artifact.path}' not found on ${credentials.host}. No action taken.")
-        case status => {
-          val err = new RuntimeException(
-            s"Artifact '${artifact.path}' could not be deleted from ${credentials.host}. Received status $status")
-          logger.info(s"API call to $artifactUrl returned $status. Response body: \n${resp.getResponseBody}")
-          Failure(err)
-        }
+    httpClient(url(artifactUrl).DELETE.withAuth)
+      .map(_.getStatusCode)
+      .map {
+        case 200 | 204 =>
+          s"Artifact '$artifact' deleted successfully from $artifactUrl"
+        case 404 =>
+          s"Artifact '$artifact' not found on $artifactUrl. No action taken."
+        case status =>
+          throw new RuntimeException(
+            s"Artifact '$artifact' could not be deleted from $artifactUrl. Received status $status"
+          )
       }
-    }
-
-    Await.result(futureResponse, 15.seconds)
   }
 
-  def fetchArtifactsPaths(artifact: ArtifactVersion): Future[Seq[String]] = {
+  def fetchArtifactsPaths(artifact: ArtifactDescription): Future[Seq[String]] = {
     val getFileListUrl =
       s"https://${credentials.host}/artifactory/api/storage/$repositoryName/${artifact.path}"
 
@@ -115,9 +93,9 @@ class ArtifactoryConnector(httpClient: Http, logger: Logger, credentials: Direct
   implicit private val artifactPathReads: Reads[ArtifactPath] = Json.reads[ArtifactPath]
 
   implicit private val artifactsPathsReads: Reads[(String, String, Seq[String])] = {
-    import play.api.libs.json._
-    import play.api.libs.json.Reads._
     import play.api.libs.functional.syntax._
+    import play.api.libs.json.Reads._
+    import play.api.libs.json._
 
     (
       (__ \ "repo").read[String] and

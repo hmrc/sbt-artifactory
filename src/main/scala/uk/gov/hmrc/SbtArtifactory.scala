@@ -47,7 +47,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
     val unpublish = taskKey[Unit]("Unpublish from Artifactory.")
     val distributeToBintray =
       taskKey[Unit]("Distributes artifacts from an Artifactory Distribution Repository to Bintray")
-    val publicArtifact =
+    val makePublicallyAvailableOnBintray =
       settingKey[Boolean]("Indicates whether an artifact is public and should be distributed or private")
     val repoKey             = settingKey[String]("Artifactory repo key")
     val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
@@ -56,17 +56,17 @@ object SbtArtifactory extends sbt.AutoPlugin {
   import autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    publicArtifact := false,
+    makePublicallyAvailableOnBintray := false,
     artifactDescription := ArtifactDescription.withCrossScalaVersion(
       organization.value,
       name.value,
       version.value,
       scalaVersion.value,
       sbtVersion.value,
-      publicArtifact.value,
+      makePublicallyAvailableOnBintray.value,
       sbtPlugin.value
     ),
-    repoKey := artifactoryRepoKey(sbtPlugin.value, publicArtifact.value),
+    repoKey := artifactoryRepoKey(sbtPlugin.value, makePublicallyAvailableOnBintray.value),
     publishMavenStyle := !sbtPlugin.value,
     publishTo := maybeUri.map { uri =>
       if (sbtPlugin.value)

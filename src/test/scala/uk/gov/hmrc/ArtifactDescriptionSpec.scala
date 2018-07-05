@@ -16,33 +16,99 @@
 
 package uk.gov.hmrc
 
-import org.scalatest.FlatSpec
-import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.Matchers._
+import org.scalatest.WordSpec
+
 import scala.util.Random
 
-class ArtifactDescriptionSpec extends FlatSpec with ScalaFutures {
+class ArtifactDescriptionSpec extends WordSpec {
 
-  "path" should "be formed using pattern: 'org/name_scalaVersion/version'" in {
-    ArtifactDescription("2.11", "org", "my-artifact", "0.1.0", Random.nextBoolean()).path shouldBe "org/my-artifact_2.11/0.1.0"
-  }
+  "withCrossScalaVersion" should {
 
-  it should "be formed using pattern: 'org/name_scalaVersion/version' - case when org contains dots" in {
-    ArtifactDescription("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0", Random.nextBoolean()).path shouldBe "uk/gov/hmrc/my-artifact_2.11/0.1.0"
-  }
-
-  it should "be formed using pattern: 'org/name_scalaVersion/version' - case when artifact-name contains dots" in {
-    ArtifactDescription("2.11", "uk.gov.hmrc", "my-artifact.public", "0.1.0", Random.nextBoolean()).path shouldBe "uk/gov/hmrc/my-artifact.public_2.11/0.1.0"
-  }
-
-  "toString" should "be formed using pattern: 'org.domain.name_scalaVersion:version'" in {
-    ArtifactDescription("2.11", "org.domain", "my-artifact", "0.1.0", Random.nextBoolean()).toString shouldBe "org.domain.my-artifact_2.11:0.1.0"
-  }
-
-  "withCrossScalaVersion" should "create an ArtifactDescription" in {
     val publicArtifact = Random.nextBoolean()
-    ArtifactDescription
-      .withCrossScalaVersion("org.domain", "my-artifact", "0.1.0", "2.11", publicArtifact) shouldBe
-      ArtifactDescription("2.11", "org.domain", "my-artifact", "0.1.0", publicArtifact)
+
+    "create a MavenArtifactDescription if it's not a plugin" in {
+      ArtifactDescription
+        .withCrossScalaVersion(
+          org            = "org.domain",
+          name           = "my-artifact",
+          version        = "0.1.0",
+          scalaVersion   = "2.11",
+          sbtVersion     = "0.13.17",
+          publicArtifact = publicArtifact,
+          sbtPlugin      = false
+        ) shouldBe
+        MavenArtifactDescription(
+          org            = "org.domain",
+          name           = "my-artifact",
+          version        = "0.1.0",
+          scalaVersion   = "2.11",
+          publicArtifact = publicArtifact
+        )
+    }
+
+    "create a SbtPluginArtifactDescription if it's a plugin" in {
+      ArtifactDescription
+        .withCrossScalaVersion(
+          org            = "org.domain",
+          name           = "my-artifact",
+          version        = "0.1.0",
+          scalaVersion   = "2.11",
+          sbtVersion     = "0.13.17",
+          publicArtifact = publicArtifact,
+          sbtPlugin      = true
+        ) shouldBe
+        IvySbtArtifactDescription(
+          org            = "org.domain",
+          name           = "my-artifact",
+          version        = "0.1.0",
+          scalaVersion   = "2.11",
+          sbtVersion     = "0.13.17",
+          publicArtifact = publicArtifact
+        )
+    }
   }
+
+  "MavenArtifactDescription.path" should {
+
+    "be formed using pattern: 'org/name_scalaVersion/version'" in {
+      MavenArtifactDescription("org", "my-artifact", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "org/my-artifact_2.11/0.1.0"
+    }
+
+    "be formed using pattern: 'org/name_scalaVersion/version' - case when org contains dots" in {
+      MavenArtifactDescription("uk.gov.hmrc", "my-artifact", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "uk/gov/hmrc/my-artifact_2.11/0.1.0"
+    }
+
+    "be formed using pattern: 'org/name_scalaVersion/version' - case when artifact-name contains dots" in {
+      MavenArtifactDescription("uk.gov.hmrc", "my-artifact.public", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "uk/gov/hmrc/my-artifact.public_2.11/0.1.0"
+    }
+  }
+
+  "MavenArtifactDescription.toString" should {
+    "be formed using pattern: 'org.domain.name_scalaVersion:version'" in {
+      MavenArtifactDescription("org.domain", "my-artifact", "0.1.0", "2.11", Random.nextBoolean()).toString shouldBe "org.domain:my-artifact:scala_2.11:0.1.0"
+    }
+  }
+
+  "IvySbtArtifactDescription.path" should {
+
+    "be formed using pattern: 'org/name/scala_scalaVersion/sbt_sbtVersion/version'" in {
+      IvySbtArtifactDescription("org", "my-artifact", "0.1.0", "2.11", "0.13.17", Random.nextBoolean()).path shouldBe "org/my-artifact/scala_2.11/sbt_0.13/0.1.0"
+    }
+
+    "be formed using pattern: 'org/name_scalaVersion/version' - case when org contains dots" in {
+      IvySbtArtifactDescription("uk.gov.hmrc", "my-artifact", "0.1.0", "2.11", "0.13.17", Random.nextBoolean()).path shouldBe "uk.gov.hmrc/my-artifact/scala_2.11/sbt_0.13/0.1.0"
+    }
+
+    "be formed using pattern: 'org/name_scalaVersion/version' - case when artifact-name contains dots" in {
+      IvySbtArtifactDescription("uk.gov.hmrc", "my-artifact.public", "0.1.0", "2.11", "0.13.17", Random.nextBoolean()).path shouldBe "uk.gov.hmrc/my-artifact.public/scala_2.11/sbt_0.13/0.1.0"
+    }
+  }
+
+  "IvySbtArtifactDescription.toString" should {
+    "be formed using pattern: 'org.domain.name/scala_scalaVersion/sbt_sbtVersion:version'" in {
+      IvySbtArtifactDescription("uk.gov.hmrc", "my-artifact", "0.1.0", "2.11", "0.13.17", Random.nextBoolean()).toString shouldBe "uk.gov.hmrc:my-artifact:scala_2.11:sbt_0.13:0.1.0"
+    }
+  }
+
 }

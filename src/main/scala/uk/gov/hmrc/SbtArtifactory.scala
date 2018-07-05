@@ -18,7 +18,9 @@ package uk.gov.hmrc
 
 import dispatch.Http
 import sbt.Keys._
+import sbt.Resolver.ivyStylePatterns
 import sbt._
+
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
@@ -55,13 +57,22 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     publicArtifact := false,
-    artifactDescription := ArtifactDescription
-      .withCrossScalaVersion(organization.value, name.value, version.value, scalaVersion.value, publicArtifact.value),
+    artifactDescription := ArtifactDescription.withCrossScalaVersion(
+      organization.value,
+      name.value,
+      version.value,
+      scalaVersion.value,
+      sbtVersion.value,
+      publicArtifact.value,
+      sbtPlugin.value
+    ),
     repoKey := artifactoryRepoKey(sbtPlugin.value, publicArtifact.value),
+    publishMavenStyle := !sbtPlugin.value,
     publishTo := maybeUri.map { uri =>
       if (sbtPlugin.value)
-        Resolver.url(repoKey.value, url(uri))(Resolver.ivyStylePatterns)
-      else "Artifactory Realm" at uri + "/" + repoKey.value
+        Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(ivyStylePatterns)
+      else
+        "Artifactory Realm" at s"$uri/${repoKey.value}"
     },
     credentials ++= maybeArtifactoryCredentials.toSeq,
     unpublish :=

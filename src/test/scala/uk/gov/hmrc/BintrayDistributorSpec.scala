@@ -21,20 +21,24 @@ import org.scalatest.Matchers._
 import org.scalatest.WordSpec
 import org.scalatest.mockito.MockitoSugar
 import sbt.Logger
+
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
+import scala.util.Random
 
 class BintrayDistributorSpec extends WordSpec with MockitoSugar {
 
   "distributeToBintray" should {
 
     "fetch list of artifacts paths and distribute them to Bintray for public artifacts" in new Setup {
-      val artifactDescription = ArtifactDescription(
-        scalaVersion   = "2.11",
+      val artifactDescription = ArtifactDescription.withCrossScalaVersion(
         org            = "uk.gov.hmrc",
         name           = "my-artifact",
         version        = "0.1.0",
-        publicArtifact = true
+        scalaVersion   = "2.11",
+        sbtVersion     = "0.13.17",
+        publicArtifact = true,
+        sbtPlugin      = Random.nextBoolean()
       )
 
       val artifactsPaths = Seq("path1", "path2")
@@ -51,12 +55,14 @@ class BintrayDistributorSpec extends WordSpec with MockitoSugar {
     }
 
     "do nothing for private artifacts" in new Setup {
-      val artifactDescription = ArtifactDescription(
-        scalaVersion   = "2.11",
+      val artifactDescription = ArtifactDescription.withCrossScalaVersion(
         org            = "uk.gov.hmrc",
         name           = "my-artifact",
         version        = "0.1.0",
-        publicArtifact = false
+        scalaVersion   = "2.11",
+        sbtVersion     = "0.13.17",
+        publicArtifact = false,
+        sbtPlugin      = Random.nextBoolean()
       )
 
       Await.result(bintrayDistributor.distributePublicArtifact(artifactDescription), Duration.Inf)

@@ -18,21 +18,14 @@ package uk.gov.hmrc
 
 import sbt.CrossVersion
 
-case class ArtifactDescription(
-  scalaVersion: String,
-  org: String,
-  name: String,
-  version: String,
-  publicArtifact: Boolean
-) {
+sealed trait ArtifactDescription {
+  val org: String
+  val name: String
+  val version: String
+  val scalaVersion: String
+  val publicArtifact: Boolean
 
-  lazy val path: String = s"${org.dotsToSlashes}/${name}_$scalaVersion/$version"
-
-  override lazy val toString: String = s"$org.${name}_$scalaVersion:$version"
-
-  private implicit class UrlDotPadding(val str: String) {
-    def dotsToSlashes: String = str.replaceAll("""\.""", "/")
-  }
+  def path: String
 }
 
 object ArtifactDescription {
@@ -42,18 +35,70 @@ object ArtifactDescription {
     name: String,
     version: String,
     scalaVersion: String,
-    publicArtifact: Boolean): ArtifactDescription = {
+    sbtVersion: String,
+    publicArtifact: Boolean,
+    sbtPlugin: Boolean): ArtifactDescription = {
     val crossScalaVersion = CrossVersion.partialVersion(scalaVersion) match {
       case Some((major, minor)) => s"$major.$minor"
       case _                    => throw new Exception(s"Unable to extract Scala version from $scalaVersion")
     }
 
-    ArtifactDescription(
-      crossScalaVersion,
-      org,
-      name,
-      version,
-      publicArtifact
-    )
+    if (sbtPlugin)
+      IvySbtArtifactDescription(
+        org,
+        name,
+        version,
+        crossScalaVersion,
+        sbtVersion,
+        publicArtifact
+      )
+    else
+      MavenArtifactDescription(
+        org,
+        name,
+        version,
+        crossScalaVersion,
+        publicArtifact
+      )
   }
+}
+
+case class MavenArtifactDescription(
+  org: String,
+  name: String,
+  version: String,
+  scalaVersion: String,
+  publicArtifact: Boolean
+) extends ArtifactDescription {
+
+  override lazy val toString: String = s"$org:$name:scala_$scalaVersion:$version"
+
+  override lazy val path: String = s"${dotsToSlashes(org)}/${name}_$scalaVersion/$version"
+
+  private def dotsToSlashes(expression: String): String = expression.replaceAll("""\.""", "/")
+}
+
+case class IvySbtArtifactDescription(
+  org: String,
+  name: String,
+  version: String,
+  scalaVersion: String,
+  sbtVersion: String,
+  publicArtifact: Boolean
+) extends ArtifactDescription {
+
+  override lazy val toString: String = s"$org:$name:scala_$scalaVersion:sbt_$sbtVersionFragment:$version"
+
+  private lazy val sbtVersionFragment =
+    CrossVersion
+      .sbtApiVersion(sbtVersion)
+      .map {
+        case (major, minor) => s"$major.$minor"
+      }
+      .getOrElse {
+        throw new Exception(s"Unable to extract Sbt version from $sbtVersion")
+      }
+
+  override lazy val path: String = s"$org/$name/scala_$scalaVersion/sbt_$sbtVersionFragment/$version"
+
 }

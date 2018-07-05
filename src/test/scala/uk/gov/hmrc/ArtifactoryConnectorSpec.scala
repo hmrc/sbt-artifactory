@@ -56,7 +56,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
       when(response.getStatusCode).thenReturn(204)
 
       repo.deleteVersion(artifact).awaitResult shouldBe
-        s"Artifact '$artifact' deleted successfully from https://${credentials.host}/artifactory/$repositoryName/uk/gov/hmrc/my-artifact_2.11/0.1.0/"
+        s"Artifact '$artifact' deleted successfully from https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
     }
 
     "return successfully with a proper message if the artifact doesn't exist" in new Setup {
@@ -64,7 +64,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
       when(response.getStatusCode).thenReturn(404)
 
       repo.deleteVersion(artifact).awaitResult shouldBe
-        s"Artifact '$artifact' not found on https://${credentials.host}/artifactory/$repositoryName/uk/gov/hmrc/my-artifact_2.11/0.1.0/. No action taken."
+        s"Artifact '$artifact' not found on https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/. No action taken."
     }
 
     "return a failure when the delete API call returns an unexpected result" in new Setup {
@@ -73,7 +73,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
       intercept[RuntimeException] {
         repo.deleteVersion(artifact).awaitResult
-      }.getMessage shouldBe s"Artifact '$artifact' could not be deleted from https://${credentials.host}/artifactory/$repositoryName/uk/gov/hmrc/my-artifact_2.11/0.1.0/. Received status 401"
+      }.getMessage shouldBe s"Artifact '$artifact' could not be deleted from https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/. Received status 401"
     }
   }
 
@@ -227,13 +227,23 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
   }
 
   private trait Setup {
+
     val credentials: DirectCredentials = Credentials(
       realm    = "Artifactory Realm",
       host     = "localhost",
       userName = "username",
       passwd   = "password"
     ).asInstanceOf[DirectCredentials]
-    val artifact = ArtifactDescription("2.11", "uk.gov.hmrc", "my-artifact", "0.1.0", Random.nextBoolean())
+
+    val artifact = ArtifactDescription.withCrossScalaVersion(
+      org            = "uk.gov.hmrc",
+      name           = "my-artifact",
+      version        = "0.1.0",
+      scalaVersion   = "2.11",
+      sbtVersion     = "0.13.17",
+      publicArtifact = Random.nextBoolean(),
+      sbtPlugin      = Random.nextBoolean()
+    )
 
     val httpClient = mock[Http]
 

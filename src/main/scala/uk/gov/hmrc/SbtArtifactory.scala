@@ -58,7 +58,11 @@ object SbtArtifactory extends sbt.AutoPlugin {
     artifactDescription := ArtifactDescription
       .withCrossScalaVersion(organization.value, name.value, version.value, scalaVersion.value, publicArtifact.value),
     repoKey := artifactoryRepoKey(sbtPlugin.value, publicArtifact.value),
-    publishTo := maybeUri.map(uri => "Artifactory Realm" at uri + "/" + repoKey.value),
+    publishTo := maybeUri.map { uri =>
+      if (sbtPlugin.value)
+        Resolver.url(repoKey.value, url(uri))(Resolver.ivyStylePatterns)
+      else "Artifactory Realm" at uri + "/" + repoKey.value
+    },
     credentials ++= maybeArtifactoryCredentials.toSeq,
     unpublish :=
       streams.value.log.info {

@@ -96,32 +96,67 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
       val repoName = "repo-name"
       val path     = "/uk/gov/hmrc/artifact-name_2.11/0.20.0"
-      when(response.getResponseBody).thenReturn(
-        Json
-          .obj(
-            "repo" -> repoName,
-            "path" -> path,
-            "children" -> Json.arr(
-              Json.obj(
-                "uri"    -> "/archived",
-                "folder" -> true
-              ),
-              Json.obj(
-                "uri"    -> "/someFile1.txt",
-                "folder" -> false
-              ),
-              Json.obj(
-                "uri"    -> "/someFile2.txt",
-                "folder" -> false
+      when(response.getResponseBody)
+        .thenReturn(
+          Json
+            .obj(
+              "repo" -> repoName,
+              "path" -> path,
+              "children" -> Json.arr(
+                Json.obj(
+                  "uri"    -> "/archived",
+                  "folder" -> true
+                ),
+                Json.obj(
+                  "uri"    -> "/someFile1.txt",
+                  "folder" -> false
+                ),
+                Json.obj(
+                  "uri"    -> "/someFile2.txt",
+                  "folder" -> false
+                )
               )
             )
-          )
-          .toString
-      )
+            .toString
+        )
+        .thenReturn(
+          Json
+            .obj(
+              "repo" -> repoName,
+              "path" -> s"$path/archived",
+              "children" -> Json.arr(
+                Json.obj(
+                  "uri"    -> "/docs",
+                  "folder" -> true
+                ),
+                Json.obj(
+                  "uri"    -> "/archivedFile.txt",
+                  "folder" -> false
+                )
+              )
+            )
+            .toString
+        )
+        .thenReturn(
+          Json
+            .obj(
+              "repo" -> repoName,
+              "path" -> s"$path/archived/docs",
+              "children" -> Json.arr(
+                Json.obj(
+                  "uri"    -> "/archivedDocsFile.txt",
+                  "folder" -> false
+                )
+              )
+            )
+            .toString
+        )
 
-      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Seq(
+      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Set(
         s"$repoName$path/someFile1.txt",
-        s"$repoName$path/someFile2.txt"
+        s"$repoName$path/someFile2.txt",
+        s"$repoName$path/archived/archivedFile.txt",
+        s"$repoName$path/archived/docs/archivedDocsFile.txt"
       )
     }
 
@@ -140,24 +175,25 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
           .toString
       )
 
-      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Seq.empty
+      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Set.empty
     }
 
     "return an empty list if the artifact is not found" in new Setup {
       when(response.getStatusCode).thenReturn(404)
 
-      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Seq.empty
+      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Set.empty
     }
 
     "throw an exception if the status code is not 200 or 404" in new Setup {
       when(response.getStatusCode).thenReturn(500)
+      when(response.getResponseBody).thenReturn(Json.obj("message" -> "error").toString())
 
       val url =
         s"https://${credentials.host}/artifactory/api/storage/$repositoryName/${artifact.path}"
 
       intercept[RuntimeException] {
         repo.fetchArtifactsPaths(artifact).awaitResult
-      }.getMessage shouldBe s"GET to $url returned with status code [500]"
+      }.getMessage shouldBe s"GET to $url returned with status code [500] and message: error"
     }
   }
 
@@ -167,7 +203,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
       when(response.getStatusCode).thenReturn(200)
 
-      repo.distributeToBintray(Seq("some-path"))
+      repo.distributeToBintray(Set("some-path"))
 
       val reqCaptor = ArgumentCaptor.forClass(classOf[Req])
       verify(httpClient).apply(reqCaptor.capture())(is(executionContext))
@@ -183,8 +219,8 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
       when(response.getStatusCode).thenReturn(200)
 
-      repo.distributeToBintray(Seq("some-path1", "some-path2")).awaitResult shouldBe
-        "some-path1\nsome-path2\ndistributed to 'bintray-distribution' repository"
+      repo.distributeToBintray(Set("some-path1", "some-path2")).awaitResult shouldBe
+        "Artifacts distributed to 'bintray-distribution' repository"
 
       val reqCaptor = ArgumentCaptor.forClass(classOf[Req])
       verify(httpClient).apply(reqCaptor.capture())(is(executionContext))
@@ -199,7 +235,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
     "don't issue a request if the list of artifacts paths is empty" in new Setup {
 
       repo
-        .distributeToBintray(Seq.empty)
+        .distributeToBintray(Set.empty)
         .awaitResult shouldBe "Nothing distributed to 'bintray-distribution' repository"
 
       verifyZeroInteractions(httpClient)
@@ -221,7 +257,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
       val url = s"https://${credentials.host}/artifactory/api/distribute"
 
       intercept[RuntimeException] {
-        repo.distributeToBintray(Seq("some-path")).awaitResult
+        repo.distributeToBintray(Set("some-path")).awaitResult
       }.getMessage shouldBe s"POST to $url returned with status code [500] and message: $message"
     }
   }

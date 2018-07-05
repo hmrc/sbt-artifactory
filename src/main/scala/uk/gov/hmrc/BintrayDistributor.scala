@@ -35,7 +35,7 @@ class BintrayDistributor(artifactoryConnector: ArtifactoryConnector, logger: Log
       Future.successful(())
     }
 
-  private def logFetchedArtifactsPaths(artifact: ArtifactDescription, paths: Seq[String]): Unit =
+  private def logFetchedArtifactsPaths(artifact: ArtifactDescription, paths: Set[String]): Unit =
     if (paths.isEmpty)
       logger.warn(s"No paths found in Artifactory for $artifact")
     else {

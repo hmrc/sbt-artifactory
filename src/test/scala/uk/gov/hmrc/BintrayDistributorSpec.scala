@@ -41,7 +41,7 @@ class BintrayDistributorSpec extends WordSpec with MockitoSugar {
         sbtPlugin      = Random.nextBoolean()
       )
 
-      val artifactsPaths = Seq("path1", "path2")
+      val artifactsPaths = Set("path1", "path2")
       when(artifactoryConnector.fetchArtifactsPaths(artifactDescription))
         .thenReturn(Future.successful(artifactsPaths))
       when(artifactoryConnector.distributeToBintray(artifactsPaths))

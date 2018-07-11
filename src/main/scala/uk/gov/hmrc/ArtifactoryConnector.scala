@@ -26,11 +26,7 @@ import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import sbt.DirectCredentials
 
 class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, repositoryName: String) {
-
   private val targetRepository = "bintray-distribution"
-  private val encodedCredentials: String =
-    Base64.getEncoder.encodeToString(s"${credentials.userName}:${credentials.passwd}".getBytes())
-  private val authHeader = s"Basic $encodedCredentials"
 
   def deleteVersion(artifact: ArtifactDescription): Future[String] = {
     val artifactUrl = s"https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
@@ -150,6 +146,9 @@ class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, rep
   }
 
   private implicit class ReqAuthVerb(req: Req) {
-    def withAuth: Req = req <:< Seq("Authorization" -> authHeader)
+    val encodedCredentials: String =
+      Base64.getEncoder.encodeToString(s"${credentials.userName}:${credentials.passwd}".getBytes())
+
+    def withAuth: Req = req <:< Seq("Authorization" -> s"Basic $encodedCredentials")
   }
 }

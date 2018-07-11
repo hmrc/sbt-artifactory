@@ -47,6 +47,8 @@ object SbtArtifactory extends sbt.AutoPlugin {
     val unpublish = taskKey[Unit]("Unpublish from Artifactory.")
     val distributeToBintray =
       taskKey[Unit]("Distributes artifacts from an Artifactory Distribution Repository to Bintray")
+    val publishAndDistribute =
+      taskKey[Unit]("Publish to Artifactory and distribute to Bintray if 'makePublicallyAvailableOnBintray' is true")
     val makePublicallyAvailableOnBintray =
       settingKey[Boolean]("Indicates whether an artifact is public and should be distributed or private")
     val repoKey             = settingKey[String]("Artifactory repo key")
@@ -84,7 +86,13 @@ object SbtArtifactory extends sbt.AutoPlugin {
     distributeToBintray :=
       new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
         .distributePublicArtifact(artifactDescription.value)
-        .awaitResult
+        .awaitResult,
+    publishAndDistribute := Def
+      .sequential(
+        publish,
+        distributeToBintray
+      )
+      .value
   )
 
   private[hmrc] def artifactoryRepoKey(sbtPlugin: Boolean, publicArtifact: Boolean): String =

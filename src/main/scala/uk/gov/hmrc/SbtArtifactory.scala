@@ -27,8 +27,6 @@ import scala.language.postfixOps
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
-  override def trigger = allRequirements
-
   private val distributionTimeout = 1 minute
 
   private val uriEnvKey          = "ARTIFACTORY_URI"
@@ -57,7 +55,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   import autoImport._
 
-  override def projectSettings: Seq[Def.Setting[_]] = Seq(
+  override val projectSettings: Seq[Def.Setting[_]] = Seq(
     makePublicallyAvailableOnBintray := false,
     artifactDescription := ArtifactDescription.withCrossScalaVersion(
       organization.value,

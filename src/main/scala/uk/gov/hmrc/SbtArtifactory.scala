@@ -74,7 +74,14 @@ object SbtArtifactory extends sbt.AutoPlugin {
       else
         "Artifactory Realm" at s"$uri/${repoKey.value}"
     },
-    credentials ++= maybeArtifactoryCredentials.toSeq,
+    credentials ++= {
+      streams.value.log.info(s"Configuring Artifactory... " +
+        s"Host: ${maybeUri.getOrElse("not set")}. " +
+        s"User: ${maybeUsername.getOrElse("not set")}. " +
+        s"Password defined: ${maybePassword.isDefined}")
+
+      maybeArtifactoryCredentials.toSeq
+    },
     unpublish :=
       streams.value.log.info {
         artifactoryConnector(repoKey.value)

@@ -7,7 +7,11 @@ import uk.gov.hmrc.versioning.SbtGitVersioning
 val pluginName = "sbt-artifactory"
 
 lazy val project = Project(pluginName, file("."))
-  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, SbtArtifactory)
+  .settings(
+    majorVersion := 0,
+    makePublicallyAvailableOnBintray := true
+  )
   .settings(
     sbtPlugin := true,
     targetJvm := "jvm-1.7",

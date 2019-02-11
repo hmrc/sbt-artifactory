@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 HM Revenue & Customs
+ * Copyright 2019 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ case class MavenArtifactDescription(
 
   override lazy val toString: String = s"$org:$name:scala_$scalaVersion:$version"
 
-  override lazy val path: String = s"${dotsToSlashes(org)}/${name}_$scalaVersion/$version"
+  override lazy val path: String = s"${dotsToSlashes(org)}/${name.toLowerCase()}_$scalaVersion/$version"
 
   private def dotsToSlashes(expression: String): String = expression.replaceAll("""\.""", "/")
 }
@@ -99,6 +99,6 @@ case class IvySbtArtifactDescription(
         throw new Exception(s"Unable to extract Sbt version from $sbtVersion")
       }
 
-  override lazy val path: String = s"$org/$name/scala_$scalaVersion/sbt_$sbtVersionFragment/$version"
+  override lazy val path: String = s"$org/${name.toLowerCase()}/scala_$scalaVersion/sbt_$sbtVersionFragment/$version"
 
 }

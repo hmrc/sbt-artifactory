@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 HM Revenue & Customs
+ * Copyright 2019 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ class ArtifactDescriptionSpec extends WordSpec {
         )
     }
 
-    "create a SbtPluginArtifactDescription if it's a plugin" in {
+    "create an IvySbtArtifactDescription if it's a plugin" in {
       ArtifactDescription
         .withCrossScalaVersion(
           org            = "org.domain",
@@ -82,6 +82,10 @@ class ArtifactDescriptionSpec extends WordSpec {
     "be formed using pattern: 'org/name_scalaVersion/version' - case when artifact-name contains dots" in {
       MavenArtifactDescription("uk.gov.hmrc", "my-artifact.public", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "uk/gov/hmrc/my-artifact.public_2.11/0.1.0"
     }
+
+    "should convert the name of the artifact to lowercase" in {
+      MavenArtifactDescription("org", "My-Artifact", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "org/my-artifact_2.11/0.1.0"
+    }
   }
 
   "MavenArtifactDescription.toString" should {
@@ -102,6 +106,10 @@ class ArtifactDescriptionSpec extends WordSpec {
 
     "be formed using pattern: 'org/name_scalaVersion/version' - case when artifact-name contains dots" in {
       IvySbtArtifactDescription("uk.gov.hmrc", "my-artifact.public", "0.1.0", "2.11", "0.13.17", Random.nextBoolean()).path shouldBe "uk.gov.hmrc/my-artifact.public/scala_2.11/sbt_0.13/0.1.0"
+    }
+
+    "should convert the name of the artifact to lowercase" in {
+      IvySbtArtifactDescription("org", "My-Artifact", "0.1.0", "2.11", "0.13.17", Random.nextBoolean()).path shouldBe "org/my-artifact/scala_2.11/sbt_0.13/0.1.0"
     }
   }
 

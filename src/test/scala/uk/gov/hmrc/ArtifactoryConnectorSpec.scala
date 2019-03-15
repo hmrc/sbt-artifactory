@@ -278,7 +278,8 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
       scalaVersion   = "2.11",
       sbtVersion     = "0.13.17",
       publicArtifact = Random.nextBoolean(),
-      sbtPlugin      = Random.nextBoolean()
+      sbtPlugin      = Random.nextBoolean(),
+      scalaJsVersion = Some("0.6.26")
     )
 
     val httpClient = mock[Http]

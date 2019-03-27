@@ -16,7 +16,7 @@ lazy val project = Project(pluginName, file("."))
   )
   .settings(
     sbtPlugin := true,
-    targetJvm := "jvm-1.8",
+    targetJvm := "jvm-1.7",
     scalaVersion := "2.10.7",
     resolvers += Resolver.url("sbt-plugin-releases", url("https://dl.bintray.com/content/sbt/sbt-plugin-releases"))(
       Resolver.ivyStylePatterns),

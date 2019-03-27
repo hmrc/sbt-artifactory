@@ -6,6 +6,8 @@ import uk.gov.hmrc.versioning.SbtGitVersioning
 
 val pluginName = "sbt-artifactory"
 
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.26")
+
 lazy val project = Project(pluginName, file("."))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, SbtArtifactory)
   .settings(

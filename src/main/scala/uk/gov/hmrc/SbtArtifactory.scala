@@ -17,10 +17,11 @@
 package uk.gov.hmrc
 
 import dispatch.Http
+import org.scalajs.sbtplugin.ScalaJSCrossVersion
+import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
 import sbt.Keys._
 import sbt.Resolver.ivyStylePatterns
 import sbt._
-
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
@@ -58,13 +59,14 @@ object SbtArtifactory extends sbt.AutoPlugin {
   override val projectSettings: Seq[Def.Setting[_]] = Seq(
     makePublicallyAvailableOnBintray := false,
     artifactDescription := ArtifactDescription.withCrossScalaVersion(
-      organization.value,
-      name.value,
-      version.value,
-      scalaVersion.value,
-      sbtVersion.value,
-      makePublicallyAvailableOnBintray.value,
-      sbtPlugin.value
+      org            = organization.value,
+      name           = name.value,
+      version        = version.value,
+      scalaVersion   = scalaVersion.value,
+      sbtVersion     = sbtVersion.value,
+      publicArtifact = makePublicallyAvailableOnBintray.value,
+      sbtPlugin      = sbtPlugin.value,
+      scalaJsVersion = if (isScalaJSProject.value) Some(ScalaJSCrossVersion.currentBinaryVersion) else None
     ),
     repoKey := artifactoryRepoKey(sbtPlugin.value, makePublicallyAvailableOnBintray.value),
     publishMavenStyle := !sbtPlugin.value,
@@ -75,10 +77,11 @@ object SbtArtifactory extends sbt.AutoPlugin {
         "Artifactory Realm" at s"$uri/${repoKey.value}"
     },
     credentials ++= {
-      streams.value.log.info(s"Configuring Artifactory... " +
-        s"Host: ${maybeUri.getOrElse("not set")}. " +
-        s"User: ${maybeUsername.getOrElse("not set")}. " +
-        s"Password defined: ${maybePassword.isDefined}")
+      streams.value.log.info(
+        s"Configuring Artifactory... " +
+          s"Host: ${maybeUri.getOrElse("not set")}. " +
+          s"User: ${maybeUsername.getOrElse("not set")}. " +
+          s"Password defined: ${maybePassword.isDefined}")
 
       maybeArtifactoryCredentials.toSeq
     },

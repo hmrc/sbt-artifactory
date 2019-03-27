@@ -38,7 +38,8 @@ class BintrayDistributorSpec extends WordSpec with MockitoSugar {
         scalaVersion   = "2.11",
         sbtVersion     = "0.13.17",
         publicArtifact = true,
-        sbtPlugin      = Random.nextBoolean()
+        sbtPlugin      = Random.nextBoolean(),
+        scalaJsVersion = Some("0.6.26")
       )
 
       val artifactsPaths = Set("path1", "path2")
@@ -62,7 +63,8 @@ class BintrayDistributorSpec extends WordSpec with MockitoSugar {
         scalaVersion   = "2.11",
         sbtVersion     = "0.13.17",
         publicArtifact = false,
-        sbtPlugin      = Random.nextBoolean()
+        sbtPlugin      = Random.nextBoolean(),
+        scalaJsVersion = None
       )
 
       Await.result(bintrayDistributor.distributePublicArtifact(artifactDescription), Duration.Inf)

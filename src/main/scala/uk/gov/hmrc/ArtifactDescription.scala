@@ -37,7 +37,8 @@ object ArtifactDescription {
     scalaVersion: String,
     sbtVersion: String,
     publicArtifact: Boolean,
-    sbtPlugin: Boolean): ArtifactDescription = {
+    sbtPlugin: Boolean,
+    scalaJsVersion: Option[String]): ArtifactDescription = {
     val crossScalaVersion = CrossVersion.partialVersion(scalaVersion) match {
       case Some((major, minor)) => s"$major.$minor"
       case _                    => throw new Exception(s"Unable to extract Scala version from $scalaVersion")
@@ -58,7 +59,8 @@ object ArtifactDescription {
         name,
         version,
         crossScalaVersion,
-        publicArtifact
+        publicArtifact,
+        scalaJsVersion
       )
   }
 }
@@ -68,12 +70,16 @@ case class MavenArtifactDescription(
   name: String,
   version: String,
   scalaVersion: String,
-  publicArtifact: Boolean
+  publicArtifact: Boolean,
+  scalaJsVersion: Option[String]
 ) extends ArtifactDescription {
 
-  override lazy val toString: String = s"$org:$name:scala_$scalaVersion:$version"
+  private lazy val scalaJsVersionPrefix = scalaJsVersion.fold("")("_sjs" + _)
 
-  override lazy val path: String = s"${dotsToSlashes(org)}/${name.toLowerCase()}_$scalaVersion/$version"
+  override lazy val toString: String = s"$org:$name$scalaJsVersionPrefix:scala_$scalaVersion:$version"
+
+  override lazy val path: String =
+    s"${dotsToSlashes(org)}/${name.toLowerCase()}${scalaJsVersionPrefix}_$scalaVersion/$version"
 
   private def dotsToSlashes(expression: String): String = expression.replaceAll("""\.""", "/")
 }

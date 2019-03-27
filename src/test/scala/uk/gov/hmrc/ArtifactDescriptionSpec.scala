@@ -36,14 +36,16 @@ class ArtifactDescriptionSpec extends WordSpec {
           scalaVersion   = "2.11",
           sbtVersion     = "0.13.17",
           publicArtifact = publicArtifact,
-          sbtPlugin      = false
+          sbtPlugin      = false,
+          scalaJsVersion = Some("0.6.26")
         ) shouldBe
         MavenArtifactDescription(
           org            = "org.domain",
           name           = "my-artifact",
           version        = "0.1.0",
           scalaVersion   = "2.11",
-          publicArtifact = publicArtifact
+          publicArtifact = publicArtifact,
+          scalaJsVersion = Some("0.6.26")
         )
     }
 
@@ -56,7 +58,8 @@ class ArtifactDescriptionSpec extends WordSpec {
           scalaVersion   = "2.11",
           sbtVersion     = "0.13.17",
           publicArtifact = publicArtifact,
-          sbtPlugin      = true
+          sbtPlugin      = true,
+          None
         ) shouldBe
         IvySbtArtifactDescription(
           org            = "org.domain",
@@ -72,25 +75,33 @@ class ArtifactDescriptionSpec extends WordSpec {
   "MavenArtifactDescription.path" should {
 
     "be formed using pattern: 'org/name_scalaVersion/version'" in {
-      MavenArtifactDescription("org", "my-artifact", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "org/my-artifact_2.11/0.1.0"
+      MavenArtifactDescription("org", "my-artifact", "0.1.0", "2.11", Random.nextBoolean(), None).path shouldBe "org/my-artifact_2.11/0.1.0"
     }
 
     "be formed using pattern: 'org/name_scalaVersion/version' - case when org contains dots" in {
-      MavenArtifactDescription("uk.gov.hmrc", "my-artifact", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "uk/gov/hmrc/my-artifact_2.11/0.1.0"
+      MavenArtifactDescription("uk.gov.hmrc", "my-artifact", "0.1.0", "2.11", Random.nextBoolean(), None).path shouldBe "uk/gov/hmrc/my-artifact_2.11/0.1.0"
     }
 
     "be formed using pattern: 'org/name_scalaVersion/version' - case when artifact-name contains dots" in {
-      MavenArtifactDescription("uk.gov.hmrc", "my-artifact.public", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "uk/gov/hmrc/my-artifact.public_2.11/0.1.0"
+      MavenArtifactDescription("uk.gov.hmrc", "my-artifact.public", "0.1.0", "2.11", Random.nextBoolean(), None).path shouldBe "uk/gov/hmrc/my-artifact.public_2.11/0.1.0"
     }
 
     "should convert the name of the artifact to lowercase" in {
-      MavenArtifactDescription("org", "My-Artifact", "0.1.0", "2.11", Random.nextBoolean()).path shouldBe "org/my-artifact_2.11/0.1.0"
+      MavenArtifactDescription("org", "My-Artifact", "0.1.0", "2.11", Random.nextBoolean(), None).path shouldBe "org/my-artifact_2.11/0.1.0"
+    }
+
+    "be formed using pattern: 'org/name_sjs<scalaJSVersion>_scalaVersion/version'" in {
+      MavenArtifactDescription("org", "my-artifact", "0.1.0", "2.11", Random.nextBoolean(), Some("0.6.26")).path shouldBe "org/my-artifact_sjs0.6.26_2.11/0.1.0"
     }
   }
 
   "MavenArtifactDescription.toString" should {
     "be formed using pattern: 'org.domain.name_scalaVersion:version'" in {
-      MavenArtifactDescription("org.domain", "my-artifact", "0.1.0", "2.11", Random.nextBoolean()).toString shouldBe "org.domain:my-artifact:scala_2.11:0.1.0"
+      MavenArtifactDescription("org.domain", "my-artifact", "0.1.0", "2.11", Random.nextBoolean(), None).toString shouldBe "org.domain:my-artifact:scala_2.11:0.1.0"
+    }
+
+    "be formed using pattern: 'org.domain.name_sjs<scalaJSVersion>_scalaVersion:version'" in {
+      MavenArtifactDescription("org.domain", "my-artifact", "0.1.0", "2.11", Random.nextBoolean(), Some("0.6.26")).toString shouldBe "org.domain:my-artifact_sjs0.6.26:scala_2.11:0.1.0"
     }
   }
 

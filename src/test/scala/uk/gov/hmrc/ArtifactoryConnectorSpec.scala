@@ -53,22 +53,6 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar with ScalaFutu
       request.getHeaders.getFirstValue("Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
     }
 
-    "return successfully if it deletes the artifact" in new Setup {
-
-      when(response.getStatusCode).thenReturn(204)
-
-      repo.deleteVersion(artifact, new MultiLogger(List.empty)).futureValue shouldBe
-        s"Artifact '$artifact' deleted successfully from https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
-    }
-
-    "return successfully with a proper message if the artifact doesn't exist" in new Setup {
-
-      when(response.getStatusCode).thenReturn(404)
-
-      repo.deleteVersion(artifact, new MultiLogger(List.empty)).futureValue shouldBe
-        s"Artifact '$artifact' not found on https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/. No action taken."
-    }
-
     "return a failure when the delete API call returns an unexpected result" in new Setup {
 
       when(response.getStatusCode).thenReturn(401)

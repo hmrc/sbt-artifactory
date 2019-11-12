@@ -23,25 +23,27 @@ import dispatch.Defaults._
 import dispatch._
 import play.api.libs.json.Json
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
-import sbt.DirectCredentials
+import sbt.{DirectCredentials, Logger}
 
 class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, repositoryName: String) {
   private val targetRepository = "bintray-distribution"
 
-  def deleteVersion(artifact: ArtifactDescription): Future[String] = {
+  def deleteVersion(artifact: ArtifactDescription, logger: Logger): Future[String] = {
     val artifactUrl = s"https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
 
     httpClient(url(artifactUrl).DELETE.withAuth)
       .map(_.getStatusCode)
       .map {
         case 200 | 204 =>
-          s"Artifact '$artifact' deleted successfully from $artifactUrl"
+          val message = s"Artifact '$artifact' deleted successfully from $artifactUrl"
+          logger.info(message)
+          message
         case 404 =>
-          s"Artifact '$artifact' not found on $artifactUrl. No action taken."
+          val message = s"Artifact '$artifact' not found on $artifactUrl. No action taken."
+          logger.info(message)
+          message
         case status =>
-          throw new RuntimeException(
-            s"Artifact '$artifact' could not be deleted from $artifactUrl. Received status $status"
-          )
+          throw new RuntimeException(s"Artifact '$artifact' could not be deleted from $artifactUrl. Received status $status")
       }
   }
 

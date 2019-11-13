@@ -23,16 +23,18 @@ import org.mockito.Matchers.{any, eq => is}
 import org.mockito.Mockito._
 import org.scalatest.Matchers._
 import org.scalatest.WordSpec
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import play.api.libs.json.Json
-import sbt.{Credentials, DirectCredentials}
+import sbt.{Credentials, DirectCredentials, MultiLogger}
+
 import scala.concurrent.ExecutionContext.Implicits.{global => executionContext}
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
 import scala.util.Random
 
-class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
+class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar with ScalaFutures {
 
   "deleteVersion" should {
 
@@ -40,7 +42,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
       when(response.getStatusCode).thenReturn(204)
 
-      repo.deleteVersion(artifact)
+      repo.deleteVersion(artifact, new MultiLogger(List.empty))
 
       val reqCaptor = ArgumentCaptor.forClass(classOf[Req])
       verify(httpClient).apply(reqCaptor.capture())(is(executionContext))
@@ -51,29 +53,14 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
       request.getHeaders.getFirstValue("Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
     }
 
-    "return successfully if it deletes the artifact" in new Setup {
-
-      when(response.getStatusCode).thenReturn(204)
-
-      repo.deleteVersion(artifact).awaitResult shouldBe
-        s"Artifact '$artifact' deleted successfully from https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
-    }
-
-    "return successfully with a proper message if the artifact doesn't exist" in new Setup {
-
-      when(response.getStatusCode).thenReturn(404)
-
-      repo.deleteVersion(artifact).awaitResult shouldBe
-        s"Artifact '$artifact' not found on https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/. No action taken."
-    }
-
     "return a failure when the delete API call returns an unexpected result" in new Setup {
 
       when(response.getStatusCode).thenReturn(401)
 
-      intercept[RuntimeException] {
-        repo.deleteVersion(artifact).awaitResult
-      }.getMessage shouldBe s"Artifact '$artifact' could not be deleted from https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/. Received status 401"
+      ScalaFutures.whenReady(repo.deleteVersion(artifact, new MultiLogger(List.empty)).failed) { exception =>
+        exception.getMessage shouldBe s"Artifact '$artifact' could not be deleted from https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/. Received status 401"
+      }
+
     }
   }
 
@@ -152,7 +139,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
             .toString
         )
 
-      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Set(
+      repo.fetchArtifactsPaths(artifact).futureValue shouldBe Set(
         s"$repoName$path/someFile1.txt",
         s"$repoName$path/someFile2.txt",
         s"$repoName$path/archived/archivedFile.txt",
@@ -175,13 +162,13 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
           .toString
       )
 
-      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Set.empty
+      repo.fetchArtifactsPaths(artifact).futureValue shouldBe Set.empty
     }
 
     "return an empty list if the artifact is not found" in new Setup {
       when(response.getStatusCode).thenReturn(404)
 
-      repo.fetchArtifactsPaths(artifact).awaitResult shouldBe Set.empty
+      repo.fetchArtifactsPaths(artifact).futureValue shouldBe Set.empty
     }
 
     "throw an exception if the status code is not 200 or 404" in new Setup {
@@ -191,9 +178,10 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
       val url =
         s"https://${credentials.host}/artifactory/api/storage/$repositoryName/${artifact.path}"
 
-      intercept[RuntimeException] {
-        repo.fetchArtifactsPaths(artifact).awaitResult
-      }.getMessage shouldBe s"GET to $url returned with status code [500] and message: error"
+      ScalaFutures.whenReady(repo.fetchArtifactsPaths(artifact).failed) { exception =>
+        exception.getMessage shouldBe s"GET to $url returned with status code [500] and message: error"
+      }
+
     }
   }
 
@@ -219,7 +207,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
       when(response.getStatusCode).thenReturn(200)
 
-      repo.distributeToBintray(Set("some-path1", "some-path2")).awaitResult shouldBe
+      repo.distributeToBintray(Set("some-path1", "some-path2")).futureValue shouldBe
         "Artifacts distributed to 'bintray-distribution' repository"
 
       val reqCaptor = ArgumentCaptor.forClass(classOf[Req])
@@ -236,7 +224,7 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
       repo
         .distributeToBintray(Set.empty)
-        .awaitResult shouldBe "Nothing distributed to 'bintray-distribution' repository"
+        .futureValue shouldBe "Nothing distributed to 'bintray-distribution' repository"
 
       verifyZeroInteractions(httpClient)
     }
@@ -256,9 +244,9 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
 
       val url = s"https://${credentials.host}/artifactory/api/distribute"
 
-      intercept[RuntimeException] {
-        repo.distributeToBintray(Set("some-path")).awaitResult
-      }.getMessage shouldBe s"POST to $url returned with status code [500] and message: $message"
+      ScalaFutures.whenReady(repo.distributeToBintray(Set("some-path")).failed) { exception =>
+        exception.getMessage shouldBe s"POST to $url returned with status code [500] and message: $message"
+      }
     }
   }
 
@@ -291,8 +279,5 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar {
     val repo           = new ArtifactoryConnector(httpClient, credentials, repositoryName)
   }
 
-  private implicit class FutureOps[T](future: Future[T]) {
-    lazy val awaitResult: T = Await.result(future, 10 seconds)
-  }
-
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(10.seconds)
 }

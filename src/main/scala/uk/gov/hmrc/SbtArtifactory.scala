@@ -30,19 +30,28 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   private val distributionTimeout = 1 minute
 
-  private val uriEnvKey          = "ARTIFACTORY_URI"
-  private val usernameEnvKey     = "ARTIFACTORY_USERNAME"
-  private val passwordEnvKey     = "ARTIFACTORY_PASSWORD"
-  private lazy val maybeUri      = sys.env.get(uriEnvKey)
-  private lazy val maybeUsername = sys.env.get(usernameEnvKey)
-  private lazy val maybePassword = sys.env.get(passwordEnvKey)
+  private val artifactoryUriEnvKey          = "ARTIFACTORY_URI"
+  private val artifactoryUsernameEnvKey     = "ARTIFACTORY_USERNAME"
+  private val artifactoryPasswordEnvKey     = "ARTIFACTORY_PASSWORD"
+  private lazy val maybeArtifactoryUri      = sys.env.get(artifactoryUriEnvKey)
+  private lazy val maybeArtifactoryUsername = sys.env.get(artifactoryUsernameEnvKey)
+  private lazy val maybeArtifactoryPassword = sys.env.get(artifactoryPasswordEnvKey)
+
   private lazy val maybeArtifactoryCredentials = for {
-    uri      <- maybeUri
-    username <- maybeUsername
-    password <- maybePassword
+    uri      <- maybeArtifactoryUri
+    username <- maybeArtifactoryUsername
+    password <- maybeArtifactoryPassword
   } yield directCredentials(uri, username, password)
 
+
+  private val bintrayUsernameEnvKey = "BINTRAY_USERNAME"
+  private val bintrayPasswordEnvKey = "BINTRAY_PASSWORD"
+  private lazy val maybeBintrayUsername = sys.env.get(bintrayUsernameEnvKey)
+  private lazy val maybeBintrayPassword = sys.env.get(bintrayPasswordEnvKey)
+
   object autoImport {
+    val unpublishFromArtifactory = taskKey[Unit]("Unpublish from Artifactory.")
+    val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray.")
     val unpublish = taskKey[Unit]("Unpublish from Artifactory.")
     val distributeToBintray =
       taskKey[Unit]("Distributes artifacts from an Artifactory Distribution Repository to Bintray")
@@ -70,7 +79,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
     ),
     repoKey := artifactoryRepoKey(sbtPlugin.value, makePublicallyAvailableOnBintray.value),
     publishMavenStyle := !sbtPlugin.value,
-    publishTo := maybeUri.map { uri =>
+    publishTo := maybeArtifactoryUri.map { uri =>
       if (sbtPlugin.value)
         Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(ivyStylePatterns)
       else
@@ -79,18 +88,27 @@ object SbtArtifactory extends sbt.AutoPlugin {
     credentials ++= {
       streams.value.log.info(
         s"Configuring Artifactory... " +
-          s"Host: ${maybeUri.getOrElse("not set")}. " +
-          s"User: ${maybeUsername.getOrElse("not set")}. " +
-          s"Password defined: ${maybePassword.isDefined}")
+          s"Host: ${maybeArtifactoryUri.getOrElse("not set")}. " +
+          s"User: ${maybeArtifactoryUsername.getOrElse("not set")}. " +
+          s"Password defined: ${maybeArtifactoryPassword.isDefined}")
 
       maybeArtifactoryCredentials.toSeq
     },
-    unpublish :=
-      streams.value.log.info {
+    unpublishFromArtifactory := {
         artifactoryConnector(repoKey.value)
-          .deleteVersion(artifactDescription.value)
+          .deleteVersion(artifactDescription.value, streams.value.log)
           .awaitResult
-      },
+    },
+    unpublishFromBintray := {
+        bintrayConnector(repoKey.value)
+          .deleteReleaseOrPluginVersion(artifactDescription.value, streams.value.log)
+          .awaitResult
+    },
+    unpublish := Def
+      .sequential(
+        unpublishFromArtifactory,
+        unpublishFromBintray
+      ),
     distributeToBintray :=
       new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
         .distributePublicArtifact(artifactDescription.value)
@@ -114,9 +132,19 @@ object SbtArtifactory extends sbt.AutoPlugin {
   private def artifactoryConnector = new ArtifactoryConnector(
     Http,
     directCredentials(
-      getOrError(maybeUri, uriEnvKey),
-      getOrError(maybeUsername, usernameEnvKey),
-      getOrError(maybePassword, passwordEnvKey)
+      getOrError(maybeArtifactoryUri, artifactoryUriEnvKey),
+      getOrError(maybeArtifactoryUsername, artifactoryUsernameEnvKey),
+      getOrError(maybeArtifactoryPassword, artifactoryPasswordEnvKey)
+    ),
+    _: String
+  )
+
+  private def bintrayConnector = new BintrayConnector(
+    Http,
+    directCredentials(
+      "https://bintray.com",
+      getOrError(maybeBintrayUsername, bintrayUsernameEnvKey),
+      getOrError(maybeBintrayPassword, bintrayPasswordEnvKey)
     ),
     _: String
   )

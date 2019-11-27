@@ -95,11 +95,13 @@ object SbtArtifactory extends sbt.AutoPlugin {
       maybeArtifactoryCredentials.toSeq
     },
     unpublishFromArtifactory := {
+      streams.value.log.info("Unpublishing from Artifactory...")
         artifactoryConnector(repoKey.value)
           .deleteVersion(artifactDescription.value, streams.value.log)
           .awaitResult
     },
     unpublishFromBintray := {
+      streams.value.log.info("Deleting from Bintray...")
         bintrayConnector(repoKey.value)
           .deleteReleaseOrPluginVersion(artifactDescription.value, streams.value.log)
           .awaitResult
@@ -108,17 +110,18 @@ object SbtArtifactory extends sbt.AutoPlugin {
       .sequential(
         unpublishFromArtifactory,
         unpublishFromBintray
-      ),
-    distributeToBintray :=
-      new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
+      ).value,
+    distributeToBintray := {
+      streams.value.log.info("Distributing to Bintray...")
+        new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
         .distributePublicArtifact(artifactDescription.value)
-        .awaitResult,
+        .awaitResult
+    },
     publishAndDistribute := Def
       .sequential(
         publish,
         distributeToBintray
-      )
-      .value
+      ).value
   )
 
   private[hmrc] def artifactoryRepoKey(sbtPlugin: Boolean, publicArtifact: Boolean): String =

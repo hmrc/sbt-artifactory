@@ -18,9 +18,9 @@ package uk.gov.hmrc
 
 import java.util.Base64
 
-import com.ning.http.client.Response
 import dispatch.Defaults._
 import dispatch._
+import org.asynchttpclient.Response
 import play.api.libs.json.Json
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import sbt.{DirectCredentials, Logger}

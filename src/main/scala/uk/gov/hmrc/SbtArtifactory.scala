@@ -16,15 +16,16 @@
 
 package uk.gov.hmrc
 
-import dispatch.Http
 import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
 import sbt.Keys._
 import sbt.Resolver.ivyStylePatterns
 import sbt._
+
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
+import DispatchCrossSupport.Http
 
 object SbtArtifactory extends sbt.AutoPlugin {
 

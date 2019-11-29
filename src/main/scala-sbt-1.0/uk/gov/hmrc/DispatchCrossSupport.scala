@@ -22,4 +22,7 @@ object DispatchCrossSupport {
   // use a type alias to the correct type, depending on the sbt version being cross-compiled. See
   // https://jira.tools.tax.service.gov.uk/browse/BDOG-510 for more context.
   type Response = org.asynchttpclient.Response
+
+  // Similarly, resolve the Http object to the version specific variant
+  val Http = dispatch.Http.default
 }

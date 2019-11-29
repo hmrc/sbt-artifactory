@@ -20,10 +20,10 @@ import java.util.Base64
 
 import dispatch.Defaults._
 import dispatch._
-import org.asynchttpclient.Response
 import play.api.libs.json.Json
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import sbt.{DirectCredentials, Logger}
+import uk.gov.hmrc.DispatchCrossSupport.Response
 
 class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, repositoryName: String) {
   private val targetRepository = "bintray-distribution"

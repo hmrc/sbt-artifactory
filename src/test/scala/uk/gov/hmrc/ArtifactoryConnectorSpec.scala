@@ -17,7 +17,6 @@
 package uk.gov.hmrc
 
 import dispatch.{Http, Req}
-import org.asynchttpclient.Response
 import org.mockito.ArgumentCaptor
 import org.mockito.Matchers.{any, eq => is}
 import org.mockito.Mockito._
@@ -27,6 +26,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import play.api.libs.json.Json
 import sbt.{Credentials, DirectCredentials, MultiLogger}
+import uk.gov.hmrc.DispatchCrossSupport.Response
 
 import scala.concurrent.ExecutionContext.Implicits.{global => executionContext}
 import scala.concurrent.Future
@@ -49,7 +49,8 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar with ScalaFutu
       val request = reqCaptor.getValue.toRequest
       request.getUrl                                    shouldBe s"https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
       request.getMethod                                 shouldBe "DELETE"
-      request.getHeaders.get("Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+
+      DispatchCrossSupport.extractRequestHeader(request, "Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
     }
 
     "return a failure when the delete API call returns an unexpected result" in new Setup {
@@ -198,8 +199,8 @@ class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar with ScalaFutu
       val request = reqCaptor.getValue.toRequest
       request.getUrl                                    shouldBe s"https://${credentials.host}/artifactory/api/distribute"
       request.getMethod                                 shouldBe "POST"
-      request.getHeaders.get("Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
-      request.getHeaders.get("content-type")  shouldBe "application/json"
+      DispatchCrossSupport.extractRequestHeader(request, "Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+      DispatchCrossSupport.extractRequestHeader(request, "content-type")  shouldBe "application/json"
     }
 
     "send a request with JSON body containing the target repo and the list of artifacts paths" in new Setup {

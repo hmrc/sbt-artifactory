@@ -16,6 +16,8 @@
 
 package uk.gov.hmrc
 
+import com.ning.http.client.Request
+
 object DispatchCrossSupport {
   // Dispatch 0.11.4 pulls in ning / async-http-client. This was broken out into it's own project
   // under async-http-client. That updated library is pulled in by dispatch 0.13.4. To work around this, we
@@ -25,4 +27,7 @@ object DispatchCrossSupport {
 
   // Similarly, resolve the Http object to the version specific variant
   val Http = dispatch.Http
+
+  // Used in tests
+  def extractRequestHeader(request: Request, headerName: String): String = request.getHeaders.getFirstValue(headerName)
 }

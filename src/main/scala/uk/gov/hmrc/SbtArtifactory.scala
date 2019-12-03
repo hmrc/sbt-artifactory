@@ -73,6 +73,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
       name           = name.value,
       version        = version.value,
       scalaVersion   = scalaVersion.value,
+      // sbtVersion needs to be resolved in the context of the pluginCrossBuild so it resolves correctly for cross-compiling sbt
       sbtVersion     = (sbtVersion in pluginCrossBuild).value,
       publicArtifact = makePublicallyAvailableOnBintray.value,
       sbtPlugin      = sbtPlugin.value,

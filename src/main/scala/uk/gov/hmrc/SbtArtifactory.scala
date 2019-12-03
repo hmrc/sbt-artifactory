@@ -73,7 +73,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
       name           = name.value,
       version        = version.value,
       scalaVersion   = scalaVersion.value,
-      sbtVersion     = sbtVersion.value,
+      sbtVersion     = (sbtVersion in pluginCrossBuild).value,
       publicArtifact = makePublicallyAvailableOnBintray.value,
       sbtPlugin      = sbtPlugin.value,
       scalaJsVersion = if (isScalaJSProject.value) Some(ScalaJSCrossVersion.currentBinaryVersion) else None

@@ -14,8 +14,6 @@ lazy val project = Project(pluginName, file("."))
   .settings(
     sbtPlugin := true,
     crossSbtVersions := Vector("0.13.18", "1.3.4"),
-    resolvers += Resolver.url("sbt-plugin-releases", url("https://dl.bintray.com/content/sbt/sbt-plugin-releases"))(
-      Resolver.ivyStylePatterns),
     // *********************************
     // TODO: The scala version is pinned to 2.10.7 only to be able to bring in the sbt-scalajs plugin
     //       as a *project* dependency. It is *not* pulling in the plugin for the build as you might expect.
@@ -26,12 +24,13 @@ lazy val project = Project(pluginName, file("."))
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.31"),
     // *********************************
     libraryDependencies ++= Seq(
-      "com.typesafe.play" %% "play-json" % "2.6.13",
-      "org.joda" % "joda-convert" % "2.1.2",
-      "org.scalatest" %% "scalatest" % "3.0.5" % Test,
-      "org.mockito" % "mockito-all" % "1.10.19" % Test,
-      "org.pegdown" % "pegdown" % "1.6.0" % Test
-    ),
+      "com.typesafe.play"     %% "play-json"                  % "2.6.14",
+      "org.joda"              % "joda-convert"                % "2.2.1",
+      "org.scalatest"         %% "scalatest"                  % "3.1.0"    % Test,
+      "org.scalatestplus"     %% "scalatestplus-mockito"      % "1.0.0-M2" % Test,
+      "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test, // replaces pegdown for newer scalatest
+      "org.mockito"           % "mockito-all"                 % "1.10.19"  % Test
+),
     libraryDependencies ++= (sbtVersion in pluginCrossBuild) { version =>
       val dispatchVersion = version match {
         case v if v startsWith "0.13" => "0.11.4"

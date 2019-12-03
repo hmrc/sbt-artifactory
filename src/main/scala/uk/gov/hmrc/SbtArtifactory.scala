@@ -112,9 +112,6 @@ object SbtArtifactory extends sbt.AutoPlugin {
         unpublishFromArtifactory,
         unpublishFromBintray
       ).value,
-    distributeToBintray :=
-      new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
-      ).value,
     distributeToBintray := {
       streams.value.log.info("Distributing to Bintray...")
         new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)

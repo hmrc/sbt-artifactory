@@ -20,10 +20,8 @@ import dispatch.{Http, Req}
 import org.mockito.ArgumentCaptor
 import org.mockito.Matchers.{any, eq => is}
 import org.mockito.Mockito._
-import org.scalatest.Matchers._
-import org.scalatest.WordSpec
+import org.scalatest.matchers.should.Matchers._
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.mockito.MockitoSugar
 import play.api.libs.json.Json
 import sbt.{Credentials, DirectCredentials, MultiLogger}
 import uk.gov.hmrc.DispatchCrossSupport.Response
@@ -32,8 +30,10 @@ import scala.concurrent.ExecutionContext.Implicits.{global => executionContext}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Random
+import org.scalatest.wordspec.AnyWordSpec
+import org.scalatestplus.mockito.MockitoSugar
 
-class ArtifactoryConnectorSpec extends WordSpec with MockitoSugar with ScalaFutures {
+class ArtifactoryConnectorSpec extends AnyWordSpec with MockitoSugar with ScalaFutures {
 
   "deleteVersion" should {
 

@@ -16,15 +16,16 @@
 
 package uk.gov.hmrc
 
-import dispatch.Http
 import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
 import sbt.Keys._
 import sbt.Resolver.ivyStylePatterns
 import sbt._
+
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
+import DispatchCrossSupport.Http
 
 object SbtArtifactory extends sbt.AutoPlugin {
 
@@ -72,7 +73,8 @@ object SbtArtifactory extends sbt.AutoPlugin {
       name           = name.value,
       version        = version.value,
       scalaVersion   = scalaVersion.value,
-      sbtVersion     = sbtVersion.value,
+      // sbtVersion needs to be resolved in the context of the pluginCrossBuild so it resolves correctly for cross-compiling sbt
+      sbtVersion     = (sbtVersion in pluginCrossBuild).value,
       publicArtifact = makePublicallyAvailableOnBintray.value,
       sbtPlugin      = sbtPlugin.value,
       scalaJsVersion = if (isScalaJSProject.value) Some(ScalaJSCrossVersion.currentBinaryVersion) else None

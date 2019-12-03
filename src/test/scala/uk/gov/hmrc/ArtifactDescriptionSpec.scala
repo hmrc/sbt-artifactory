@@ -16,12 +16,11 @@
 
 package uk.gov.hmrc
 
-import org.scalatest.Matchers._
-import org.scalatest.WordSpec
-
+import org.scalatest.matchers.should.Matchers._
 import scala.util.Random
+import org.scalatest.wordspec.AnyWordSpec
 
-class ArtifactDescriptionSpec extends WordSpec {
+class ArtifactDescriptionSpec extends AnyWordSpec {
 
   "withCrossScalaVersion" should {
 

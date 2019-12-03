@@ -17,16 +17,15 @@
 package uk.gov.hmrc
 
 import org.mockito.Mockito._
-import org.scalatest.Matchers._
-import org.scalatest.WordSpec
-import org.scalatest.mockito.MockitoSugar
 import sbt.Logger
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.util.Random
+import org.scalatest.wordspec.AnyWordSpec
+import org.scalatestplus.mockito.MockitoSugar
 
-class BintrayDistributorSpec extends WordSpec with MockitoSugar {
+class BintrayDistributorSpec extends AnyWordSpec with MockitoSugar {
 
   "distributeToBintray" should {
 

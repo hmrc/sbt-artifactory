@@ -17,9 +17,10 @@
 package uk.gov.hmrc
 
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
-class SbtArtifactorySpec extends WordSpec with Matchers with TableDrivenPropertyChecks {
+class SbtArtifactorySpec extends AnyWordSpec with Matchers with TableDrivenPropertyChecks {
 
   "artifactoryRepoKey" should {
 

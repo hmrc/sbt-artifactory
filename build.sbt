@@ -30,7 +30,9 @@ lazy val project = Project(pluginName, file("."))
       "org.scalatestplus"     %% "scalatestplus-mockito"      % "1.0.0-M2" % Test,
       "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test, // replaces pegdown for newer scalatest
       "org.mockito"           % "mockito-all"                 % "1.10.19"  % Test
-),
+    ),
+    // There is no release of dispatch cross-compiled for both scala 2.10 and scala 2.12 (required by sbt 0.13/1.x)
+    // As a result, use a version dependent on the sbtVersion
     libraryDependencies ++= (sbtVersion in pluginCrossBuild) { version =>
       val dispatchVersion = version match {
         case v if v startsWith "0.13" => "0.11.4"

@@ -20,7 +20,7 @@ lazy val project = Project(pluginName, file("."))
     //       Code in the plugin is used in the SbtArtifactory object. Without this, the explicit scalaVersion could be
     //       removed and would then pick up the value as defined in the sbt-settings plugin,
     //       via sbt-auto-build (currently 2.11.12).
-    scalaVersion := "2.10.7",
+    scalaVersion := "2.11.8",
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.31"),
     // *********************************
     libraryDependencies ++= Seq(

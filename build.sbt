@@ -20,7 +20,7 @@ lazy val project = Project(pluginName, file("."))
     //       Code in the plugin is used in the SbtArtifactory object. Without this, the explicit scalaVersion could be
     //       removed and would then pick up the value as defined in the sbt-settings plugin,
     //       via sbt-auto-build (currently 2.11.12).
-    scalaVersion := "2.10.7",
+    scalaVersion := "2.12.10",
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.31"),
     // *********************************
     libraryDependencies ++= Seq(
@@ -28,8 +28,7 @@ lazy val project = Project(pluginName, file("."))
       "org.joda"              % "joda-convert"                % "2.2.1",
       "org.scalatest"         %% "scalatest"                  % "3.1.0"    % Test,
       "org.scalatestplus"     %% "scalatestplus-mockito"      % "1.0.0-M2" % Test,
-      "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test, // replaces pegdown for newer scalatest
-      "org.mockito"           % "mockito-all"                 % "1.10.19"  % Test
+      "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test // replaces pegdown for newer scalatest
     ),
     // There is no release of dispatch cross-compiled for both scala 2.10 and scala 2.12 (required by sbt 0.13/1.x)
     // As a result, use a version dependent on the sbtVersion

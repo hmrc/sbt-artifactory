@@ -126,6 +126,8 @@ object SbtArtifactory extends sbt.AutoPlugin {
       ).value
   )
 
+  override def trigger = allRequirements
+
   private[hmrc] def artifactoryRepoKey(sbtPlugin: Boolean, publicArtifact: Boolean): String =
     (sbtPlugin, publicArtifact) match {
       case (false, false) => "hmrc-releases-local"

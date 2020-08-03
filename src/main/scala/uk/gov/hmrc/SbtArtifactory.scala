@@ -52,6 +52,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   object autoImport {
     val unpublishFromArtifactory = taskKey[Unit]("Unpublish from Artifactory.")
+    val unpublishFromArtifactoryBintrayDistribution = taskKey[Unit]("Unpublish from Artifactory bintray-distribution.")
     val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray.")
     val unpublish = taskKey[Unit]("Unpublish from Artifactory.")
     val distributeToBintray =
@@ -102,6 +103,12 @@ object SbtArtifactory extends sbt.AutoPlugin {
           .deleteVersion(artifactDescription.value, streams.value.log)
           .awaitResult
     },
+    unpublishFromArtifactoryBintrayDistribution := {
+      streams.value.log.info("Unpublishing from Artifactory bintray-distribution...")
+      artifactoryConnector(repoKey.value)
+        .deleteBintrayDistributionVersion(artifactDescription.value, streams.value.log)
+        .awaitResult
+    },
     unpublishFromBintray := {
       streams.value.log.info("Deleting from Bintray...")
         bintrayConnector(repoKey.value)
@@ -111,6 +118,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
     unpublish := Def
       .sequential(
         unpublishFromArtifactory,
+        unpublishFromArtifactoryBintrayDistribution,
         unpublishFromBintray
       ).value,
     distributeToBintray := {

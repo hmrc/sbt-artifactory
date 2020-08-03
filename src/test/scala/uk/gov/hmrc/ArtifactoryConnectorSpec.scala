@@ -64,6 +64,35 @@ class ArtifactoryConnectorSpec extends AnyWordSpec with MockitoSugar with ScalaF
     }
   }
 
+  "deleteVersionBintrayDistribution" should {
+
+    "send a delete request with proper authorization header" in new Setup {
+
+      when(response.getStatusCode).thenReturn(204)
+
+      repo.deleteBintrayDistributionVersion(artifact, new MultiLogger(List.empty))
+
+      val reqCaptor = ArgumentCaptor.forClass(classOf[Req])
+      verify(httpClient).apply(reqCaptor.capture())(is(executionContext))
+
+      val request = reqCaptor.getValue.toRequest
+      request.getUrl                                    shouldBe s"https://${credentials.host}/artifactory/bintray-distribution/${artifact.path}/"
+      request.getMethod                                 shouldBe "DELETE"
+
+      DispatchCrossSupport.extractRequestHeader(request, "Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+    }
+
+    "return a failure when the delete API call returns an unexpected result" in new Setup {
+
+      when(response.getStatusCode).thenReturn(401)
+
+      ScalaFutures.whenReady(repo.deleteBintrayDistributionVersion(artifact, new MultiLogger(List.empty)).failed) { exception =>
+        exception.getMessage shouldBe s"Artifact '$artifact' could not be deleted from https://${credentials.host}/artifactory/bintray-distribution/${artifact.path}/. Received status 401"
+      }
+
+    }
+  }
+
   "fetchArtifactsPaths" should {
     "send a get request to fetch the list of paths to artifacts" in new Setup {
       when(response.getStatusCode).thenReturn(200)

@@ -31,6 +31,8 @@ class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, rep
   def deleteVersion(artifact: ArtifactDescription, logger: Logger): Future[Unit] = {
     val artifactUrl = s"https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
 
+    logger.info(s"Attempting to delete artifact '$artifact' in repository '$repositoryName', full path: $artifactUrl")
+
     httpClient(url(artifactUrl).DELETE.withAuth)
       .map(_.getStatusCode)
       .map {

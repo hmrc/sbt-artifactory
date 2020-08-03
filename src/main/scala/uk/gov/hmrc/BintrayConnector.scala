@@ -31,16 +31,21 @@ class BintrayConnector(httpClient: Http, credentials: DirectCredentials, reposit
 
     val bintrayReleasesUrl =
       s"https://${credentials.host}/api/v1/packages/hmrc/releases/${artifact.name}/versions/${artifact.version}"
+    val labsBintrayReleasesUrl =
+      s"https://${credentials.host}/api/v1/packages/hmrc/releases-lab03/${artifact.name}/versions/${artifact.version}"
     val bintrayPluginsUrl =
       s"https://${credentials.host}/api/v1/packages/hmrc/sbt-plugin-releases/${artifact.name}/versions/${artifact.version}"
 
     for {
+      // The artifact will only be in max one of these locations, other locations will just skip and log: 'No action taken.'
       _ <- deleteVersion(bintrayReleasesUrl, artifact, logger)
+      _ <- deleteVersion(labsBintrayReleasesUrl, artifact, logger)
       _ <- deleteVersion(bintrayPluginsUrl, artifact, logger)
     } yield ()
   }
 
-  private def deleteVersion(bintrayUri: String, artifact: ArtifactDescription, logger: Logger): Future[Unit] =
+  private def deleteVersion(bintrayUri: String, artifact: ArtifactDescription, logger: Logger): Future[Unit] = {
+    logger.info(s"Attempting to delete artifact '$artifact' from $bintrayUri")
     httpClient(url(bintrayUri).DELETE <:< Seq("Authorization" -> s"Basic $encodedCredentials"))
       .map(_.getStatusCode)
       .map {
@@ -51,4 +56,5 @@ class BintrayConnector(httpClient: Http, credentials: DirectCredentials, reposit
         case status =>
           logger.info(s"Artifact '$artifact' could not be deleted from $bintrayUri. Received status $status")
       }
+  }
 }

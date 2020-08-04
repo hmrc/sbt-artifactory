@@ -19,8 +19,10 @@ package uk.gov.hmrc
 import java.util.Base64
 
 import dispatch.Defaults._
-import dispatch._
+import dispatch.{Http, url}
 import sbt.{DirectCredentials, Logger}
+
+import scala.concurrent._
 
 class BintrayConnector(httpClient: Http, credentials: DirectCredentials, repositoryName: String) {
 
@@ -29,19 +31,19 @@ class BintrayConnector(httpClient: Http, credentials: DirectCredentials, reposit
 
   def deleteReleaseOrPluginVersion(artifact: ArtifactDescription, logger: Logger): Future[Unit] = {
 
-    val bintrayReleasesUrl =
-      s"https://${credentials.host}/api/v1/packages/hmrc/releases/${artifact.name}/versions/${artifact.version}"
-    val labsBintrayReleasesUrl =
-      s"https://${credentials.host}/api/v1/packages/hmrc/releases-lab03/${artifact.name}/versions/${artifact.version}"
-    val bintrayPluginsUrl =
-      s"https://${credentials.host}/api/v1/packages/hmrc/sbt-plugin-releases/${artifact.name}/versions/${artifact.version}"
+    def artifactUrl(repo: String) = s"https://${credentials.host}/api/v1/packages/hmrc/$repo/${artifact.name}/versions/${artifact.version}"
 
-    for {
-      // The artifact will only be in max one of these locations, other locations will just skip and log: 'No action taken.'
-      _ <- deleteVersion(bintrayReleasesUrl, artifact, logger)
-      _ <- deleteVersion(labsBintrayReleasesUrl, artifact, logger)
-      _ <- deleteVersion(bintrayPluginsUrl, artifact, logger)
-    } yield ()
+    // The artifact will only be in max one of these locations, other locations will just skip and log: 'No action taken.'
+    // TODO: Once configured as a global plugin (BDOG-794), the labs/live location could be set globally to avoid checking both
+    val repos = List("releases", "releases-lab03", "sbt-plugin-releases")
+
+    Future.traverse(repos)(repo =>
+      deleteVersion(artifactUrl(repo), artifact, logger)
+        .recover {
+          case ex => logger.error(s"Failed to delete artifact '$artifact' from '$repo': ${ex.getMessage}")
+        }
+    ).map(_ => ())
+
   }
 
   private def deleteVersion(bintrayUri: String, artifact: ArtifactDescription, logger: Logger): Future[Unit] = {

@@ -45,7 +45,8 @@ class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, rep
       }
   }
 
-  def deleteBintrayDistributionVersion(artifact: ArtifactDescription, logger: Logger): Future[Unit] = deleteVersion(artifact, logger, bintrayDistribution)
+  def deleteBintrayDistributionVersion(artifact: ArtifactDescription, bintrayReleasesFolder: String, logger: Logger): Future[Unit] =
+    deleteVersion(artifact, logger, s"$bintrayDistribution/$bintrayReleasesFolder")
 
   def fetchArtifactsPaths(artifact: ArtifactDescription): Future[Set[String]] = {
 

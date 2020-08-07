@@ -29,13 +29,12 @@ class BintrayConnector(httpClient: Http, credentials: DirectCredentials, reposit
   private val encodedCredentials: String =
     Base64.getEncoder.encodeToString(s"${credentials.userName}:${credentials.passwd}".getBytes())
 
-  def deleteReleaseOrPluginVersion(artifact: ArtifactDescription, logger: Logger): Future[Unit] = {
+  def deleteReleaseOrPluginVersion(artifact: ArtifactDescription, bintrayReleasesFolder: String, logger: Logger): Future[Unit] = {
 
     def artifactUrl(repo: String) = s"https://${credentials.host}/api/v1/packages/hmrc/$repo/${artifact.name}/versions/${artifact.version}"
 
     // The artifact will only be in max one of these locations, other locations will just skip and log: 'No action taken.'
-    // TODO: Once configured as a global plugin (BDOG-794), the labs/live location could be set globally to avoid checking both
-    val repos = List("releases", "releases-lab03", "sbt-plugin-releases")
+    val repos = List(bintrayReleasesFolder, "sbt-plugin-releases")
 
     Future.traverse(repos)(repo =>
       deleteVersion(artifactUrl(repo), artifact, logger)

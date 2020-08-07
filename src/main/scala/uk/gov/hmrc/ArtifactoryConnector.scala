@@ -26,10 +26,12 @@ import sbt.{DirectCredentials, Logger}
 import uk.gov.hmrc.DispatchCrossSupport.Response
 
 class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, repositoryName: String) {
-  private val targetRepository = "bintray-distribution"
+  private val bintrayDistribution = "bintray-distribution"
 
-  def deleteVersion(artifact: ArtifactDescription, logger: Logger): Future[Unit] = {
-    val artifactUrl = s"https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
+  def deleteVersion(artifact: ArtifactDescription, logger: Logger, repository: String = repositoryName): Future[Unit] = {
+    val artifactUrl = s"https://${credentials.host}/artifactory/$repository/${artifact.path}/"
+
+    logger.info(s"Attempting to delete artifact '$artifact' in repository '$repository', full path: $artifactUrl")
 
     httpClient(url(artifactUrl).DELETE.withAuth)
       .map(_.getStatusCode)
@@ -42,6 +44,8 @@ class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, rep
           throw new RuntimeException(s"Artifact '$artifact' could not be deleted from $artifactUrl. Received status $status")
       }
   }
+
+  def deleteBintrayDistributionVersion(artifact: ArtifactDescription, logger: Logger): Future[Unit] = deleteVersion(artifact, logger, bintrayDistribution)
 
   def fetchArtifactsPaths(artifact: ArtifactDescription): Future[Set[String]] = {
 
@@ -82,10 +86,10 @@ class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, rep
 
   def distributeToBintray(artifactsPaths: Set[String]): Future[String] = artifactsPaths match {
     case paths if paths.isEmpty =>
-      Future.successful(s"Nothing distributed to '$targetRepository' repository")
+      Future.successful(s"Nothing distributed to '$bintrayDistribution' repository")
     case paths =>
       val payload = Json.obj(
-        "targetRepo"        -> targetRepository,
+        "targetRepo"        -> bintrayDistribution,
         "packagesRepoPaths" -> Json.arr(paths.map(toJsFieldJsValueWrapper(_)).toList: _*)
       )
 
@@ -99,7 +103,7 @@ class ArtifactoryConnector(httpClient: Http, credentials: DirectCredentials, rep
       httpClient(request) map { response =>
         response.getStatusCode match {
           case 200 =>
-            s"Artifacts distributed to '$targetRepository' repository"
+            s"Artifacts distributed to '$bintrayDistribution' repository"
           case statusCode =>
             throw new RuntimeException(
               s"POST to $distributeUrl returned with status code [$statusCode]${extractErrorMessage(response)}"

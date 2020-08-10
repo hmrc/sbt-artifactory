@@ -38,4 +38,21 @@ class SbtArtifactorySpec extends AnyWordSpec with Matchers with TableDrivenPrope
       }
     }
   }
+
+  "bintrayReleasesFolder" should {
+    "resolve for live build" in {
+      SbtArtifactory.resolveBintrayReleasesFolder(Some("https://artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
+    }
+    "resolve for live build when not set" in {
+      SbtArtifactory.resolveBintrayReleasesFolder(None) shouldBe "releases"
+    }
+    "resolve for labs build" in {
+      SbtArtifactory.resolveBintrayReleasesFolder(Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases-lab03"
+    }
+    "resolve to releases when regex doesn't match" in {
+      SbtArtifactory.resolveBintrayReleasesFolder(Some("https://lab3.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
+      SbtArtifactory.resolveBintrayReleasesFolder(Some("https://lab.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
+    }
+  }
+
 }

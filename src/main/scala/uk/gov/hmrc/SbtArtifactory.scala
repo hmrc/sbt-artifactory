@@ -31,19 +31,20 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   private val distributionTimeout = 1 minute
 
-  private val artifactoryUriEnvKey          = "ARTIFACTORY_URI"
-  private val artifactoryUsernameEnvKey     = "ARTIFACTORY_USERNAME"
-  private val artifactoryPasswordEnvKey     = "ARTIFACTORY_PASSWORD"
-  private lazy val maybeArtifactoryUri      = sys.env.get(artifactoryUriEnvKey)
-  private lazy val maybeArtifactoryUsername = sys.env.get(artifactoryUsernameEnvKey)
-  private lazy val maybeArtifactoryPassword = sys.env.get(artifactoryPasswordEnvKey)
+  private val artifactoryUriEnvKey            = "ARTIFACTORY_URI"
+  private val artifactoryUsernameEnvKey       = "ARTIFACTORY_USERNAME"
+  private val artifactoryPasswordEnvKey       = "ARTIFACTORY_PASSWORD"
+  private lazy val maybeArtifactoryUri        = sys.env.get(artifactoryUriEnvKey)
+  private lazy val maybeArtifactoryUsername   = sys.env.get(artifactoryUsernameEnvKey)
+  private lazy val maybeArtifactoryPassword   = sys.env.get(artifactoryPasswordEnvKey)
+
+  val artifactoryLabsPattern = ".*lab([0-9]{2}).*".r
 
   private lazy val maybeArtifactoryCredentials = for {
     uri      <- maybeArtifactoryUri
     username <- maybeArtifactoryUsername
     password <- maybeArtifactoryPassword
   } yield directCredentials(uri, username, password)
-
 
   private val bintrayUsernameEnvKey = "BINTRAY_USERNAME"
   private val bintrayPasswordEnvKey = "BINTRAY_PASSWORD"
@@ -62,6 +63,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
     val makePublicallyAvailableOnBintray =
       settingKey[Boolean]("Indicates whether an artifact is public and should be distributed or private")
     val repoKey             = settingKey[String]("Artifactory repo key")
+    val bintrayReleasesFolder = settingKey[String]("Bintray releases folder")
     val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
   }
 
@@ -81,6 +83,11 @@ object SbtArtifactory extends sbt.AutoPlugin {
       scalaJsVersion = if (isScalaJSProject.value) Some(ScalaJSCrossVersion.currentBinaryVersion) else None
     ),
     repoKey := artifactoryRepoKey(sbtPlugin.value, makePublicallyAvailableOnBintray.value),
+    bintrayReleasesFolder := {
+      val resolved = resolveBintrayReleasesFolder(maybeArtifactoryUri)
+      sLog.value.info(s"SbtArtifactoryPlugin - Resolved bintray releases folder to be '$resolved' based on the artifactory URI")
+      resolved
+    },
     publishMavenStyle := !sbtPlugin.value,
     publishTo := maybeArtifactoryUri.map { uri =>
       if (sbtPlugin.value)
@@ -90,7 +97,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
     },
     credentials ++= {
       streams.value.log.info(
-        s"Configuring Artifactory... " +
+        s"SbtArtifactoryPlugin - Configuring Artifactory... " +
           s"Host: ${maybeArtifactoryUri.getOrElse("not set")}. " +
           s"User: ${maybeArtifactoryUsername.getOrElse("not set")}. " +
           s"Password defined: ${maybeArtifactoryPassword.isDefined}")
@@ -98,21 +105,21 @@ object SbtArtifactory extends sbt.AutoPlugin {
       maybeArtifactoryCredentials.toSeq
     },
     unpublishFromArtifactory := {
-      streams.value.log.info("Unpublishing from Artifactory...")
+      streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Artifactory...")
         artifactoryConnector(repoKey.value)
           .deleteVersion(artifactDescription.value, streams.value.log)
           .awaitResult
     },
     unpublishFromArtifactoryBintrayDistribution := {
-      streams.value.log.info("Unpublishing from Artifactory bintray-distribution...")
+      streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Artifactory bintray-distribution...")
       artifactoryConnector(repoKey.value)
-        .deleteBintrayDistributionVersion(artifactDescription.value, streams.value.log)
+        .deleteBintrayDistributionVersion(artifactDescription.value, bintrayReleasesFolder.value, streams.value.log)
         .awaitResult
     },
     unpublishFromBintray := {
-      streams.value.log.info("Deleting from Bintray...")
+      streams.value.log.info("SbtArtifactoryPlugin - Deleting from Bintray...")
         bintrayConnector(repoKey.value)
-          .deleteReleaseOrPluginVersion(artifactDescription.value, streams.value.log)
+          .deleteReleaseOrPluginVersion(artifactDescription.value, bintrayReleasesFolder.value, streams.value.log)
           .awaitResult
     },
     unpublish := Def
@@ -122,7 +129,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
         unpublishFromBintray
       ).value,
     distributeToBintray := {
-      streams.value.log.info("Distributing to Bintray...")
+      streams.value.log.info("SbtArtifactoryPlugin - Distributing to Bintray...")
         new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
         .distributePublicArtifact(artifactDescription.value)
         .awaitResult
@@ -143,6 +150,14 @@ object SbtArtifactory extends sbt.AutoPlugin {
       case (true, false)  => "hmrc-sbt-plugin-releases-local"
       case (true, true)   => "hmrc-public-sbt-plugin-releases-local"
     }
+
+  private[hmrc] def resolveBintrayReleasesFolder(artifactoryUriToResolve: Option[String]): String = {
+    // Determine whether we're pointing at labs or live artifactory, and resolve to use the correct releases repo
+    (for {
+      artifactoryUri <- artifactoryUriToResolve
+      labNum <- artifactoryLabsPattern.findFirstMatchIn(artifactoryUri).map(_.group(1))
+    } yield s"releases-lab$labNum").getOrElse("releases")
+  }
 
   private def artifactoryConnector = new ArtifactoryConnector(
     Http,
@@ -165,7 +180,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
   )
 
   private def getOrError(option: Option[String], keyName: String) = option.getOrElse {
-    sys.error(s"No $keyName environment variable found")
+    sys.error(s"SbtArtifactoryPlugin - No $keyName environment variable found")
   }
 
   private def directCredentials(uri: String, userName: String, password: String): DirectCredentials =

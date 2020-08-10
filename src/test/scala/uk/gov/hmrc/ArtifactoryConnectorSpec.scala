@@ -70,13 +70,13 @@ class ArtifactoryConnectorSpec extends AnyWordSpec with MockitoSugar with ScalaF
 
       when(response.getStatusCode).thenReturn(204)
 
-      repo.deleteBintrayDistributionVersion(artifact, new MultiLogger(List.empty))
+      repo.deleteBintrayDistributionVersion(artifact, "releases", new MultiLogger(List.empty))
 
       val reqCaptor = ArgumentCaptor.forClass(classOf[Req])
       verify(httpClient).apply(reqCaptor.capture())(is(executionContext))
 
       val request = reqCaptor.getValue.toRequest
-      request.getUrl                                    shouldBe s"https://${credentials.host}/artifactory/bintray-distribution/${artifact.path}/"
+      request.getUrl                                    shouldBe s"https://${credentials.host}/artifactory/bintray-distribution/releases/${artifact.path}/"
       request.getMethod                                 shouldBe "DELETE"
 
       DispatchCrossSupport.extractRequestHeader(request, "Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
@@ -86,8 +86,8 @@ class ArtifactoryConnectorSpec extends AnyWordSpec with MockitoSugar with ScalaF
 
       when(response.getStatusCode).thenReturn(401)
 
-      ScalaFutures.whenReady(repo.deleteBintrayDistributionVersion(artifact, new MultiLogger(List.empty)).failed) { exception =>
-        exception.getMessage shouldBe s"Artifact '$artifact' could not be deleted from https://${credentials.host}/artifactory/bintray-distribution/${artifact.path}/. Received status 401"
+      ScalaFutures.whenReady(repo.deleteBintrayDistributionVersion(artifact, "releases", new MultiLogger(List.empty)).failed) { exception =>
+        exception.getMessage shouldBe s"Artifact '$artifact' could not be deleted from https://${credentials.host}/artifactory/bintray-distribution/releases/${artifact.path}/. Received status 401"
       }
 
     }

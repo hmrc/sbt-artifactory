@@ -134,11 +134,10 @@ object SbtArtifactory extends sbt.AutoPlugin {
         .distributePublicArtifact(artifactDescription.value)
         .awaitResult
     },
-    publishAndDistribute := Def
-      .sequential(
-        publish,
-        distributeToBintray
-      ).value
+    publishAndDistribute := {
+      streams.value.log.info("Not distributing to Bintray...")
+      publish.value
+    }
   )
 
   override def trigger = allRequirements

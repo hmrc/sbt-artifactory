@@ -19,6 +19,7 @@ lazy val project = Project(pluginName, file("."))
     //       the build as you might expect. Code in the plugin is used in the SbtArtifactory object.
     scalaVersion := "2.12.12",
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.31"),
+    addSbtPlugin("org.foundweekends" % "sbt-bintray" % "0.5.6"),
     // *********************************
     libraryDependencies ++= Seq(
       "com.typesafe.play"     %% "play-json"                  % "2.6.14",
@@ -32,7 +33,7 @@ lazy val project = Project(pluginName, file("."))
     libraryDependencies ++= (sbtVersion in pluginCrossBuild) { version =>
       val dispatchVersion = version match {
         case v if v startsWith "0.13" => "0.11.4"
-        case v if v startsWith "1.3" => "0.13.4"
+        case v if v startsWith "1.3" => "0.12.0"
       }
       Seq("net.databinder.dispatch" %% "dispatch-core" % dispatchVersion)
     }.value

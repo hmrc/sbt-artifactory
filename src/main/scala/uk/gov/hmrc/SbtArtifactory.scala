@@ -16,8 +16,11 @@
 
 package uk.gov.hmrc
 
+import bintray.BintrayKeys._
+import dispatch.Http
 import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
+import sbt.Classpaths.publishTask
 import sbt.Keys._
 import sbt.Resolver.ivyStylePatterns
 import sbt._
@@ -25,9 +28,9 @@ import sbt._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
-import DispatchCrossSupport.Http
+import scala.util.matching.Regex
 
-object SbtArtifactory extends sbt.AutoPlugin {
+object SbtArtifactory extends sbt.AutoPlugin{
 
   private val distributionTimeout = 1 minute
 
@@ -38,7 +41,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
   private lazy val maybeArtifactoryUsername   = sys.env.get(artifactoryUsernameEnvKey)
   private lazy val maybeArtifactoryPassword   = sys.env.get(artifactoryPasswordEnvKey)
 
-  val artifactoryLabsPattern = ".*lab([0-9]{2}).*".r
+  val artifactoryLabsPattern: Regex = ".*lab([0-9]{2}).*".r
 
   private lazy val maybeArtifactoryCredentials = for {
     uri      <- maybeArtifactoryUri
@@ -46,17 +49,12 @@ object SbtArtifactory extends sbt.AutoPlugin {
     password <- maybeArtifactoryPassword
   } yield directCredentials(uri, username, password)
 
-  private val bintrayUsernameEnvKey = "BINTRAY_USERNAME"
-  private val bintrayPasswordEnvKey = "BINTRAY_PASSWORD"
-  private lazy val maybeBintrayUsername = sys.env.get(bintrayUsernameEnvKey)
-  private lazy val maybeBintrayPassword = sys.env.get(bintrayPasswordEnvKey)
-
   object autoImport {
     val unpublishFromArtifactory = taskKey[Unit]("Unpublish from Artifactory.")
     val unpublishFromArtifactoryBintrayDistribution = taskKey[Unit]("Unpublish from Artifactory bintray-distribution.")
     val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray.")
     val unpublish = taskKey[Unit]("Unpublish from Artifactory.")
-    val distributeToBintray =
+    val publishToBintray =
       taskKey[Unit]("Distributes artifacts from an Artifactory Distribution Repository to Bintray")
     val publishAndDistribute =
       taskKey[Unit]("Publish to Artifactory and distribute to Bintray if 'makePublicallyAvailableOnBintray' is true")
@@ -70,6 +68,10 @@ object SbtArtifactory extends sbt.AutoPlugin {
   import autoImport._
 
   override val projectSettings: Seq[Def.Setting[_]] = Seq(
+    publishMavenStyle := !sbtPlugin.value,
+    bintrayOrganization := Some("hmrc"),
+    bintrayRepository := (if (sbtPlugin.value) s"sbt-plugin-releases" else "releases"),
+    licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"),
     makePublicallyAvailableOnBintray := false,
     artifactDescription := ArtifactDescription.withCrossScalaVersion(
       org            = organization.value,
@@ -110,34 +112,33 @@ object SbtArtifactory extends sbt.AutoPlugin {
           .deleteVersion(artifactDescription.value, streams.value.log)
           .awaitResult
     },
-    unpublishFromArtifactoryBintrayDistribution := {
-      streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Artifactory bintray-distribution...")
-      artifactoryConnector(repoKey.value)
-        .deleteBintrayDistributionVersion(artifactDescription.value, bintrayReleasesFolder.value, streams.value.log)
-        .awaitResult
-    },
-    unpublishFromBintray := {
-      streams.value.log.info("SbtArtifactoryPlugin - Deleting from Bintray...")
-        bintrayConnector(repoKey.value)
-          .deleteReleaseOrPluginVersion(artifactDescription.value, bintrayReleasesFolder.value, streams.value.log)
-          .awaitResult
-    },
-    unpublish := Def
-      .sequential(
-        unpublishFromArtifactory,
-        unpublishFromArtifactoryBintrayDistribution,
-        unpublishFromBintray
-      ).value,
-    distributeToBintray := {
-      streams.value.log.info("SbtArtifactoryPlugin - Distributing to Bintray...")
-        new BintrayDistributor(artifactoryConnector(repoKey.value), streams.value.log)
-        .distributePublicArtifact(artifactDescription.value)
-        .awaitResult
-    },
-    publishAndDistribute := {
-      streams.value.log.info("Not distributing to Bintray...")
-      publish.value
-    }
+    unpublishFromBintray := Def.taskDyn({
+      if (artifactDescription.value.publicArtifact) {
+        streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Bintray...")
+        bintrayUnpublish.toTask
+      } else {
+        Def.task {
+          streams.value.log.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
+        }
+      }
+    }).result.value,// fail silently
+    unpublish := Def.sequential(
+      unpublishFromArtifactory,
+      unpublishFromBintray
+    ).value,
+    publishToBintray := Def.taskDyn({
+      if(artifactDescription.value.publicArtifact) {
+        streams.value.log.info("SbtArtifactoryPlugin - Distributing to Bintray...")
+        bintrayRelease
+          .dependsOn(publishTask(publishConfiguration, deliver))
+          .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
+      } else {
+        Def.task{
+          streams.value.log.info("SbtArtifactoryPlugin - Not distributing to Bintray...")
+        }
+      }
+    }).value,
+    publishAndDistribute := publishToBintray.dependsOn(publish).value
   )
 
   override def trigger = allRequirements
@@ -164,16 +165,6 @@ object SbtArtifactory extends sbt.AutoPlugin {
       getOrError(maybeArtifactoryUri, artifactoryUriEnvKey),
       getOrError(maybeArtifactoryUsername, artifactoryUsernameEnvKey),
       getOrError(maybeArtifactoryPassword, artifactoryPasswordEnvKey)
-    ),
-    _: String
-  )
-
-  private def bintrayConnector = new BintrayConnector(
-    Http,
-    directCredentials(
-      "https://bintray.com",
-      getOrError(maybeBintrayUsername, bintrayUsernameEnvKey),
-      getOrError(maybeBintrayPassword, bintrayPasswordEnvKey)
     ),
     _: String
   )

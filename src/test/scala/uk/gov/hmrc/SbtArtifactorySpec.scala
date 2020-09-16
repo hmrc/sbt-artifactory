@@ -39,22 +39,22 @@ class SbtArtifactorySpec extends AnyWordSpec with Matchers with TableDrivenPrope
     }
   }
 
-  "bintrayReleasesFolder" should {
+  "bintrayRepoKey" should {
     "resolve for live build plugin" in {
-      SbtArtifactory.bintrayRepoKey(sbtPlugin = true, Some("https://artefacts.tax.service.gov.uk/artifactory")) shouldBe "sbt-plugin-releases"
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = true, Some("https://artefacts.tax.service.gov.uk/artifactory")) shouldBe "sbt-plugin-releases"
     }
     "resolve for lab build plugin" in {
-      SbtArtifactory.bintrayRepoKey(sbtPlugin = true, Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "sbt-plugin-releases"
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = true, Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "sbt-plugin-releases"
     }
     "resolve for live build library when not set" in {
-      SbtArtifactory.bintrayRepoKey(sbtPlugin = false, None) shouldBe "releases"
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, None) shouldBe "releases"
     }
     "resolve for labs build library" in {
-      SbtArtifactory.bintrayRepoKey(sbtPlugin = false, Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases-lab03"
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases-lab03"
     }
     "resolve to releases when regex doesn't match" in {
-      SbtArtifactory.bintrayRepoKey(sbtPlugin = false, Some("https://lab3.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
-      SbtArtifactory.bintrayRepoKey(sbtPlugin = false, Some("https://lab.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab3.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
     }
   }
 

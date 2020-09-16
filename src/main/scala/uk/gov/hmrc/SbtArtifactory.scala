@@ -54,7 +54,8 @@ object SbtArtifactory extends sbt.AutoPlugin{
     val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray")
     val unpublish = taskKey[Unit]("Unpublish from Artifactory and from Bintray")
     val publishToBintray = taskKey[Unit]("Publish artifact to Bintray")
-    val publishAndDistribute =
+    val publishAndDistribute = taskKey[Unit]("Deprecated - please use publishAll instead")
+    val publishToAll =
       taskKey[Unit]("Publish to Artifactory and also to Bintray if 'makePublicallyAvailableOnBintray' is true")
     val makePublicallyAvailableOnBintray =
       settingKey[Boolean]("Indicates whether an artifact is public and should be published to Bintray")
@@ -123,7 +124,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
       unpublishFromArtifactory,
       unpublishFromBintray
     ).value,
-    publishToBintray := Def.taskDyn({
+    publishToAll := Def.taskDyn({
       if(artifactDescription.value.publicArtifact) {
         streams.value.log.info("SbtArtifactoryPlugin - Publishing to Bintray...")
         bintrayRelease
@@ -135,21 +136,25 @@ object SbtArtifactory extends sbt.AutoPlugin{
         }
       }
     }).value,
+    publishToBintray := {
+      sLog.value.info(s"SbtArtifactoryPlugin - 'publishToBintray' is deprecated. Please use publishToAll instead")
+      publishToAll.value
+    },
     publishAndDistribute := publishToBintray.dependsOn(publish).value
   )
 
   override def trigger = allRequirements
 
-  private[hmrc] def artifactoryRepoKey(sbtPlugin: Boolean, publicArtifact: Boolean): String =
-    (sbtPlugin, publicArtifact) match {
+  private[hmrc] def artifactoryRepoKey(isSbtPlugin: Boolean, publicArtifact: Boolean): String =
+    (isSbtPlugin, publicArtifact) match {
       case (false, false) => "hmrc-releases-local"
       case (false, true)  => "hmrc-public-releases-local"
       case (true, false)  => "hmrc-sbt-plugin-releases-local"
       case (true, true)   => "hmrc-public-sbt-plugin-releases-local"
     }
 
-  private[hmrc] def bintrayRepoKey(sbtPlugin: Boolean, artifactoryUriToResolve: Option[String]): String =
-    if (sbtPlugin) {
+  private[hmrc] def bintrayRepoKey(isSbtPlugin: Boolean, artifactoryUriToResolve: Option[String]): String =
+    if (isSbtPlugin) {
       "sbt-plugin-releases"
     } else {
       // Determine whether we're pointing at labs or live artifactory, and resolve to use the correct releases repo

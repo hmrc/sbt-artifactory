@@ -39,19 +39,22 @@ class SbtArtifactorySpec extends AnyWordSpec with Matchers with TableDrivenPrope
     }
   }
 
-  "bintrayReleasesFolder" should {
-    "resolve for live build" in {
-      SbtArtifactory.resolveBintrayReleasesFolder(Some("https://artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
+  "bintrayRepoKey" should {
+    "resolve for live build plugin" in {
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = true, Some("https://artefacts.tax.service.gov.uk/artifactory")) shouldBe "sbt-plugin-releases"
     }
-    "resolve for live build when not set" in {
-      SbtArtifactory.resolveBintrayReleasesFolder(None) shouldBe "releases"
+    "resolve for lab build plugin" in {
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = true, Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "sbt-plugin-releases"
     }
-    "resolve for labs build" in {
-      SbtArtifactory.resolveBintrayReleasesFolder(Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases-lab03"
+    "resolve for live build library when not set" in {
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, None) shouldBe "releases"
+    }
+    "resolve for labs build library" in {
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases-lab03"
     }
     "resolve to releases when regex doesn't match" in {
-      SbtArtifactory.resolveBintrayReleasesFolder(Some("https://lab3.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
-      SbtArtifactory.resolveBintrayReleasesFolder(Some("https://lab.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab3.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
+      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
     }
   }
 

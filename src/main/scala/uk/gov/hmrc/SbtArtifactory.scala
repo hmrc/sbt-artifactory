@@ -21,7 +21,7 @@ import dispatch.Http
 import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
 import sbt.Classpaths.publishTask
-import sbt.Keys._
+import sbt.Keys.{sbtPlugin, _}
 import sbt.Resolver.ivyStylePatterns
 import sbt._
 
@@ -50,18 +50,16 @@ object SbtArtifactory extends sbt.AutoPlugin{
   } yield directCredentials(uri, username, password)
 
   object autoImport {
-    val unpublishFromArtifactory = taskKey[Unit]("Unpublish from Artifactory.")
-    val unpublishFromArtifactoryBintrayDistribution = taskKey[Unit]("Unpublish from Artifactory bintray-distribution.")
-    val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray.")
-    val unpublish = taskKey[Unit]("Unpublish from Artifactory.")
-    val publishToBintray =
-      taskKey[Unit]("Distributes artifacts from an Artifactory Distribution Repository to Bintray")
+    val unpublishFromArtifactory = taskKey[Unit]("Unpublish from Artifactory")
+    val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray")
+    val unpublish = taskKey[Unit]("Unpublish from Artifactory and from Bintray")
+    val publishToBintray = taskKey[Unit]("Publish artifact to Bintray")
     val publishAndDistribute =
-      taskKey[Unit]("Publish to Artifactory and distribute to Bintray if 'makePublicallyAvailableOnBintray' is true")
+      taskKey[Unit]("Publish to Artifactory and also to Bintray if 'makePublicallyAvailableOnBintray' is true")
     val makePublicallyAvailableOnBintray =
-      settingKey[Boolean]("Indicates whether an artifact is public and should be distributed or private")
-    val repoKey             = settingKey[String]("Artifactory repo key")
-    val bintrayReleasesFolder = settingKey[String]("Bintray releases folder")
+      settingKey[Boolean]("Indicates whether an artifact is public and should be published to Bintray")
+    val repoKey = settingKey[String]("Artifactory repository name")
+    val bintrayRepository = settingKey[String]("Bintray repository name")
     val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
   }
 
@@ -70,7 +68,11 @@ object SbtArtifactory extends sbt.AutoPlugin{
   override val projectSettings: Seq[Def.Setting[_]] = Seq(
     publishMavenStyle := !sbtPlugin.value,
     bintrayOrganization := Some("hmrc"),
-    bintrayRepository := (if (sbtPlugin.value) s"sbt-plugin-releases" else "releases"),
+    bintrayRepository := {
+      val resolved = bintrayRepoKey(sbtPlugin.value, maybeArtifactoryUri)
+      sLog.value.info(s"SbtArtifactoryPlugin - Resolved bintray repo to be '$resolved'")
+      resolved
+    },
     licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"),
     makePublicallyAvailableOnBintray := false,
     artifactDescription := ArtifactDescription.withCrossScalaVersion(
@@ -85,11 +87,6 @@ object SbtArtifactory extends sbt.AutoPlugin{
       scalaJsVersion = if (isScalaJSProject.value) Some(ScalaJSCrossVersion.currentBinaryVersion) else None
     ),
     repoKey := artifactoryRepoKey(sbtPlugin.value, makePublicallyAvailableOnBintray.value),
-    bintrayReleasesFolder := {
-      val resolved = resolveBintrayReleasesFolder(maybeArtifactoryUri)
-      sLog.value.info(s"SbtArtifactoryPlugin - Resolved bintray releases folder to be '$resolved' based on the artifactory URI")
-      resolved
-    },
     publishMavenStyle := !sbtPlugin.value,
     publishTo := maybeArtifactoryUri.map { uri =>
       if (sbtPlugin.value)
@@ -128,13 +125,13 @@ object SbtArtifactory extends sbt.AutoPlugin{
     ).value,
     publishToBintray := Def.taskDyn({
       if(artifactDescription.value.publicArtifact) {
-        streams.value.log.info("SbtArtifactoryPlugin - Distributing to Bintray...")
+        streams.value.log.info("SbtArtifactoryPlugin - Publishing to Bintray...")
         bintrayRelease
           .dependsOn(publishTask(publishConfiguration, deliver))
           .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
       } else {
         Def.task{
-          streams.value.log.info("SbtArtifactoryPlugin - Not distributing to Bintray...")
+          streams.value.log.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
         }
       }
     }).value,
@@ -151,13 +148,16 @@ object SbtArtifactory extends sbt.AutoPlugin{
       case (true, true)   => "hmrc-public-sbt-plugin-releases-local"
     }
 
-  private[hmrc] def resolveBintrayReleasesFolder(artifactoryUriToResolve: Option[String]): String = {
-    // Determine whether we're pointing at labs or live artifactory, and resolve to use the correct releases repo
-    (for {
-      artifactoryUri <- artifactoryUriToResolve
-      labNum <- artifactoryLabsPattern.findFirstMatchIn(artifactoryUri).map(_.group(1))
-    } yield s"releases-lab$labNum").getOrElse("releases")
-  }
+  private[hmrc] def bintrayRepoKey(sbtPlugin: Boolean, artifactoryUriToResolve: Option[String]): String =
+    if (sbtPlugin) {
+      "sbt-plugin-releases"
+    } else {
+      // Determine whether we're pointing at labs or live artifactory, and resolve to use the correct releases repo
+      (for {
+        artifactoryUri <- artifactoryUriToResolve
+        labNum <- artifactoryLabsPattern.findFirstMatchIn(artifactoryUri).map(_.group(1))
+      } yield s"releases-lab$labNum").getOrElse("releases")
+    }
 
   private def artifactoryConnector = new ArtifactoryConnector(
     Http,

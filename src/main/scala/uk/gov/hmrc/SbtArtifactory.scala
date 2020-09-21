@@ -17,6 +17,7 @@
 package uk.gov.hmrc
 
 import bintray.BintrayKeys._
+import _root_.bintray.BintrayPlugin
 import dispatch.Http
 import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
@@ -124,7 +125,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
       unpublishFromArtifactory,
       unpublishFromBintray
     ).value,
-    publishToAll := Def.taskDyn({
+    publishToBintray := Def.taskDyn({
       if(artifactDescription.value.publicArtifact) {
         streams.value.log.info("SbtArtifactoryPlugin - Publishing to Bintray...")
         bintrayRelease
@@ -136,14 +137,16 @@ object SbtArtifactory extends sbt.AutoPlugin{
         }
       }
     }).value,
-    publishToBintray := {
+    publishToAll := publishToBintray.dependsOn(publish).value,
+    publishAndDistribute := {
       sLog.value.info(s"SbtArtifactoryPlugin - 'publishToBintray' is deprecated. Please use publishToAll instead")
       publishToAll.value
-    },
-    publishAndDistribute := publishToBintray.dependsOn(publish).value
+    }
   )
 
   override def trigger = allRequirements
+  //Without this the BintrayPlugin#bintrayRepository default definition may be applied after our definition
+  override def requires: Plugins = BintrayPlugin
 
   private[hmrc] def artifactoryRepoKey(isSbtPlugin: Boolean, publicArtifact: Boolean): String =
     (isSbtPlugin, publicArtifact) match {

@@ -16,15 +16,15 @@
 
 package uk.gov.hmrc
 
-import bintray.BintrayKeys._
 import _root_.bintray.BintrayPlugin
+import bintray.BintrayKeys._
 import dispatch.Http
 import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
-import sbt.Classpaths.publishTask
-import sbt.Keys.{sbtPlugin, _}
+import sbt.Classpaths.{getPublishTo, publishTask}
+import sbt.Keys.{publish, sbtPlugin, _}
 import sbt.Resolver.ivyStylePatterns
-import sbt._
+import sbt.{Def, PublishConfiguration, Resolver, taskKey, _}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -54,15 +54,13 @@ object SbtArtifactory extends sbt.AutoPlugin{
     val unpublishFromArtifactory = taskKey[Unit]("Unpublish from Artifactory")
     val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray")
     val unpublish = taskKey[Unit]("Unpublish from Artifactory and from Bintray")
-    val publishToBintray = taskKey[Unit]("Publish artifact to Bintray")
+    val publishToBintray = taskKey[Unit]("Publish artifact to Artifactory")
+    val publishToArtifactory = taskKey[Unit]("Publish artifact to Bintray")
     val publishAndDistribute = taskKey[Unit]("Deprecated - please use publishAll instead")
-    val publishToAll =
-      taskKey[Unit]("Publish to Artifactory and also to Bintray if 'makePublicallyAvailableOnBintray' is true")
-    val makePublicallyAvailableOnBintray =
-      settingKey[Boolean]("Indicates whether an artifact is public and should be published to Bintray")
+    val makePublicallyAvailableOnBintray = settingKey[Boolean]("Indicates whether an artifact is public and should be published to Bintray")
     val repoKey = settingKey[String]("Artifactory repository name")
-    val bintrayRepository = settingKey[String]("Bintray repository name")
     val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
+    val bintrayPublishConfiguration = taskKey[PublishConfiguration]("Configuration for publishing to a Bintray repository")
   }
 
   import autoImport._
@@ -75,6 +73,8 @@ object SbtArtifactory extends sbt.AutoPlugin{
       sLog.value.info(s"SbtArtifactoryPlugin - Resolved bintray repo to be '$resolved'")
       resolved
     },
+    bintrayPublishConfiguration := PublishConfigurationSupport.withResolverName(publishConfiguration.value, getPublishTo((publishTo in bintray).value).name),
+    externalResolvers := (publishTo in bintray).value.toList,
     licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"),
     makePublicallyAvailableOnBintray := false,
     artifactDescription := ArtifactDescription.withCrossScalaVersion(
@@ -125,11 +125,12 @@ object SbtArtifactory extends sbt.AutoPlugin{
       unpublishFromArtifactory,
       unpublishFromBintray
     ).value,
+    publishToArtifactory := publishTask(publishConfiguration, deliver).value,
     publishToBintray := Def.taskDyn({
       if(artifactDescription.value.publicArtifact) {
         streams.value.log.info("SbtArtifactoryPlugin - Publishing to Bintray...")
         bintrayRelease
-          .dependsOn(publishTask(publishConfiguration, deliver))
+          .dependsOn(publishTask(bintrayPublishConfiguration, deliver))
           .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
       } else {
         Def.task{
@@ -137,10 +138,13 @@ object SbtArtifactory extends sbt.AutoPlugin{
         }
       }
     }).value,
-    publishToAll := publishToBintray.dependsOn(publish).value,
+    publish := Def.sequential(
+      publishToArtifactory,
+      publishToBintray
+    ).value,
     publishAndDistribute := {
-      sLog.value.info(s"SbtArtifactoryPlugin - 'publishToBintray' is deprecated. Please use publishToAll instead")
-      publishToAll.value
+      sLog.value.info(s"SbtArtifactoryPlugin - 'publishToBintray' is deprecated. Please use publish instead")
+      publish.value
     }
   )
 

@@ -74,7 +74,8 @@ object SbtArtifactory extends sbt.AutoPlugin{
       resolved
     },
     bintrayPublishConfiguration := PublishConfigurationSupport.withResolverName(publishConfiguration.value, getPublishTo((publishTo in bintray).value).name),
-    externalResolvers := (publishTo in bintray).value.toList,
+    //Overriding the default otherResolvers is required to also initialise the publishTo in bintray resolver
+    otherResolvers := Resolver.publishMavenLocal +: (publishTo.value.toVector ++ (publishTo in bintray).value.toVector),
     licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"),
     makePublicallyAvailableOnBintray := false,
     artifactDescription := ArtifactDescription.withCrossScalaVersion(

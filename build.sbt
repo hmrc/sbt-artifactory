@@ -6,7 +6,8 @@ import uk.gov.hmrc.versioning.SbtGitVersioning
 val pluginName = "sbt-artifactory"
 
 // We are shading the project's dependencies.
-// The main motivation for this is a conflict between dependencies of global and local plugins.
+// The main motivation for this is a conflict between dependencies of global and local plugins,
+// principally dispatch-core as pulled in by sbt-bintray.
 // On sbt 1.3.x their dependencies are merged before evicting, cause some runtime errors. This
 // seems to be resolved on sbt 1.4.x.
 val shadedPackages = Seq(
@@ -37,11 +38,8 @@ lazy val project = Project(pluginName, file("."))
     addSbtPlugin("org.foundweekends" % "sbt-bintray" % "0.5.6"
       // exclude "provided" otherwise they will be included in shaded jar
       // scala-xml contains "scala-xml.properties" which can't be excluded with validNamespaces
-      // (TODO should they be added to libaryDependencies?)
-      exclude("org.scala-lang.modules", "scala-xml_2.12")
+      exclude("org.scala-lang.modules", "scala-xml_2.12") // not a dependency for 2.10 (sbt 0.13)
       exclude("org.scala-lang", "*")
-
-      // TODO infact we could exclude all except dispatch? - this is the one which is causing problems
     ),
     // *********************************
     libraryDependencies ++= Seq(
@@ -54,8 +52,6 @@ lazy val project = Project(pluginName, file("."))
 
     shadedModules   += "org.foundweekends" % "sbt-bintray",
     shadingRules    ++= shadedPackages.map(ShadingRule.moveUnder(_, "uk.gov.hmrc.sbt-artifactory.shaded")),
-    validNamespaces += "uk",
-    validNamespaces += "sbt", // sbt/sbt.autoplugins needs to be in route
-
-    shadingVerbose := true,
+    validNamespaces += "uk", // doesn't support nested namespaces (e.g. "uk.gov.hmrc") since it matches all directories in the created jar (including parent directories)
+    validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in route
   )

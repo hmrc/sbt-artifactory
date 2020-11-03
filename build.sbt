@@ -9,6 +9,17 @@ val pluginName = "sbt-artifactory"
 // The main motivation for this is a conflict between dependencies of global and local plugins.
 // On sbt 1.3.x their dependencies are merged before evicting, cause some runtime errors. This
 // seems to be resolved on sbt 1.4.x.
+val shadedPackages = Seq(
+  "bintry",
+  "bintray",
+  "com.ning",
+  "com.thoughtworks",
+  "dispatch",
+  "org.jboss",
+  "org.json4s",
+  "org.slf4j"
+)
+
 lazy val project = Project(pluginName, file("."))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, SbtArtifactory, ShadingPlugin)
   .settings(
@@ -29,6 +40,7 @@ lazy val project = Project(pluginName, file("."))
       // (TODO should they be added to libaryDependencies?)
       exclude("org.scala-lang.modules", "scala-xml_2.12")
       exclude("org.scala-lang", "*")
+
       // TODO infact we could exclude all except dispatch? - this is the one which is causing problems
     ),
     // *********************************
@@ -40,14 +52,10 @@ lazy val project = Project(pluginName, file("."))
       "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test // replaces pegdown for newer scalatest
     ),
 
-    shadedModules += "org.foundweekends" % "sbt-bintray",
-    shadingRules += ShadingRule.moveUnder("dispatch", "uk.gov.hmrc.sbt-artifactory.shaded"),
-    shadingRules += ShadingRule.moveUnder("com",      "uk.gov.hmrc.sbt-artifactory.shaded"),
-    shadingRules += ShadingRule.moveUnder("bintry",   "uk.gov.hmrc.sbt-artifactory.shaded"),
-    shadingRules += ShadingRule.moveUnder("bintray",  "uk.gov.hmrc.sbt-artifactory.shaded"),
+    shadedModules   += "org.foundweekends" % "sbt-bintray",
+    shadingRules    ++= shadedPackages.map(ShadingRule.moveUnder(_, "uk.gov.hmrc.sbt-artifactory.shaded")),
     validNamespaces += "uk",
     validNamespaces += "sbt", // sbt/sbt.autoplugins needs to be in route
-    validNamespaces += "org", // org.scalajs.sbtplugin.ScalaJSPlugin$AutoImport$ needs to be untouched
 
     shadingVerbose := true,
   )

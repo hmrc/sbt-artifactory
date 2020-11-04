@@ -50,8 +50,14 @@ lazy val project = Project(pluginName, file("."))
       "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test // replaces pegdown for newer scalatest
     ),
 
+    // sbt_bintray pulls in dispatch-core 0.11.2, which strips out trailing `/`, breaking delete calls to Artifactory
+    dependencyOverrides ++= (sbtVersion in pluginCrossBuild) {
+      case v if v startsWith "0.13" => Seq("net.databinder.dispatch" %% "dispatch-core" % "0.11.4")
+      case v if v startsWith "1.3" => Seq.empty[ModuleID]
+    }.value,
+
     shadedModules   += "org.foundweekends" % "sbt-bintray",
     shadingRules    ++= shadedPackages.map(ShadingRule.moveUnder(_, "uk.gov.hmrc.sbt-artifactory.shaded")),
     validNamespaces += "uk", // doesn't support nested namespaces (e.g. "uk.gov.hmrc") since it matches all directories in the created jar (including parent directories)
-    validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in route
+    validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in root
   )

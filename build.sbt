@@ -22,11 +22,12 @@ val shadedPackages = Seq(
 )
 
 lazy val commonSettings = Seq(
-  organization := "uk.gov.hmrc",
-  majorVersion := 1,
-  scalaVersion := "2.12.12",
-//  makePublicallyAvailableOnBintray := true,
-//  scalacOptions ++= Seq("-feature")
+  organization     := "uk.gov.hmrc",
+  majorVersion     := 1,
+  scalaVersion     := "2.12.12",
+  sbtPlugin        := true,
+  crossSbtVersions := Vector("0.13.18", "1.3.13"),
+  makePublicallyAvailableOnBintray := true,
 )
 
 lazy val root = (project in file("."))
@@ -34,11 +35,9 @@ lazy val root = (project in file("."))
   .settings(
     commonSettings,
     skip.in(publish) := true,
-    sbtPlugin := true,
-    crossSbtVersions := Vector("0.13.18", "1.3.13"),
-    Compile / scalaSource := baseDirectory.value / "madeup",
+    Compile / scalaSource :=     baseDirectory.value / "madeup",
     Compile / resources   := Seq(baseDirectory.value / "madeup"),
-    Test    / scalaSource := baseDirectory.value / "madeup",
+    Test    / scalaSource :=     baseDirectory.value / "madeup",
     Test    / resources   := Seq(baseDirectory.value / "madeup")
   )
   .aggregate(
@@ -46,16 +45,14 @@ lazy val root = (project in file("."))
     adjusted
   )
 
-
 lazy val assembly = Project("sbt-artifactory-assembly", file("assembly"))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, ShadingPlugin)
   .settings(
     commonSettings,
-    sbtPlugin := true,
-    crossSbtVersions := Vector("0.13.18", "1.3.13"),
-    Compile / scalaSource := baseDirectory.value / "../src/main/scala",
+    skip.in(publish) := true, // TODO still publishing ivy.xml (could be SbtShading doesn't respect this setting)
+    Compile / scalaSource :=     baseDirectory.value / "../src/main/scala",
     Compile / resources   := Seq(baseDirectory.value / "../src/main/resources"),
-    Test    / scalaSource := baseDirectory.value / "../src/test/scala",
+    Test    / scalaSource :=     baseDirectory.value / "../src/test/scala",
     Test    / resources   := Seq(baseDirectory.value / "../src/test/resources"),
 
     // *********************************
@@ -87,23 +84,19 @@ lazy val assembly = Project("sbt-artifactory-assembly", file("assembly"))
     shadedModules   += "org.foundweekends" % "sbt-bintray",
     shadingRules    ++= shadedPackages.map(ShadingRule.moveUnder(_, "uk.gov.hmrc.sbt-artifactory.shaded")),
     validNamespaces += "uk", // doesn't support nested namespaces (e.g. "uk.gov.hmrc") since it matches all directories in the created jar (including parent directories)
-    validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in root
+    validNamespaces += "sbt", // sbt/sbt.autoplugins needs to be in root // TODO there are multiple sbt.autoplugins, we need to ensure that ours wins...
   )
 
 lazy val adjusted = Project(pluginName, file("transient"))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
-    majorVersion := 1,
-    //makePublicallyAvailableOnBintray := true,
+    commonSettings,
 
     // publish the shaded bin
     Compile / packageBin := (assembly / Compile / shadedPackageBin).value,
+    Compile / packageSrc := (assembly / Compile / packageSrc      ).value,
+    Compile / packageDoc := (assembly / Compile / packageDoc      ).value,
 
     // but adjust the dependencies
-    // TODO remove the dependsOn(assembly) - just pull in it's libraryDependencies, applying the exclusion
-    // that way we don't need to publish assembly
-    excludeDependencies ++= Seq(
-      ExclusionRule("org.foundweekends", "sbt-bintray"),
-    )
+    libraryDependencies := (assembly / libraryDependencies).value.filterNot(_.name == "sbt-bintray")
   )
-  .dependsOn(assembly)

@@ -21,15 +21,43 @@ val shadedPackages = Seq(
   "org.slf4j"
 )
 
-lazy val project = Project(pluginName, file("."))
-  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, ShadingPlugin)
+lazy val commonSettings = Seq(
+  organization := "uk.gov.hmrc",
+  majorVersion := 1,
+  scalaVersion := "2.12.12",
+//  makePublicallyAvailableOnBintray := true,
+//  scalacOptions ++= Seq("-feature")
+)
+
+lazy val root = (project in file("."))
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
-    majorVersion := 1,
-    makePublicallyAvailableOnBintray := true
-  )
-  .settings(
+    commonSettings,
+    skip.in(publish) := true,
     sbtPlugin := true,
     crossSbtVersions := Vector("0.13.18", "1.3.13"),
+    Compile / scalaSource := baseDirectory.value / "madeup",
+    Compile / resources   := Seq(baseDirectory.value / "madeup"),
+    Test    / scalaSource := baseDirectory.value / "madeup",
+    Test    / resources   := Seq(baseDirectory.value / "madeup")
+  )
+  .aggregate(
+    assembly,
+    adjusted
+  )
+
+
+lazy val assembly = Project("sbt-artifactory-assembly", file("assembly"))
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, ShadingPlugin)
+  .settings(
+    commonSettings,
+    sbtPlugin := true,
+    crossSbtVersions := Vector("0.13.18", "1.3.13"),
+    Compile / scalaSource := baseDirectory.value / "../src/main/scala",
+    Compile / resources   := Seq(baseDirectory.value / "../src/main/resources"),
+    Test    / scalaSource := baseDirectory.value / "../src/test/scala",
+    Test    / resources   := Seq(baseDirectory.value / "../src/test/resources"),
+
     // *********************************
     // Note: The sbt-scalajs plugin is brought in as a *project* dependency. It is *not* pulling in the plugin for
     //       the build as you might expect. Code in the plugin is used in the SbtArtifactory object.
@@ -62,19 +90,20 @@ lazy val project = Project(pluginName, file("."))
     validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in root
   )
 
-lazy val adjusted = Project("adjusted", file("adjusted"))
+lazy val adjusted = Project(pluginName, file("transient"))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
-    name := "sbt-artifactory-adjusted",
     majorVersion := 1,
-    makePublicallyAvailableOnBintray := true,
+    //makePublicallyAvailableOnBintray := true,
 
     // publish the shaded bin
-    Compile / packageBin := (project / Compile / shadedPackageBin).value,
+    Compile / packageBin := (assembly / Compile / shadedPackageBin).value,
 
     // but adjust the dependencies
+    // TODO remove the dependsOn(assembly) - just pull in it's libraryDependencies, applying the exclusion
+    // that way we don't need to publish assembly
     excludeDependencies ++= Seq(
       ExclusionRule("org.foundweekends", "sbt-bintray"),
     )
   )
-  .dependsOn(project)
+  .dependsOn(assembly)

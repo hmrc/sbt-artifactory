@@ -22,13 +22,16 @@ val shadedPackages = Seq(
 )
 
 lazy val project = Project(pluginName, file("."))
-  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, SbtArtifactory, ShadingPlugin)
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning/*, SbtArtifactory*/)
   .settings(
-    majorVersion := 1,
-    makePublicallyAvailableOnBintray := true
+    majorVersion := 1/*,
+    makePublicallyAvailableOnBintray := true*/
   )
   .settings(
     sbtPlugin := true,
+
+    publishTo := Some(Resolver.file("Unused transient repository", file("target/unusedrepo"))),
+
     crossSbtVersions := Vector("0.13.18", "1.3.13"),
     // *********************************
     // Note: The sbt-scalajs plugin is brought in as a *project* dependency. It is *not* pulling in the plugin for
@@ -56,8 +59,36 @@ lazy val project = Project(pluginName, file("."))
       case v if v startsWith "1.3" => Seq.empty[ModuleID]
     }.value,
 
-    shadedModules   += "org.foundweekends" % "sbt-bintray",
+assemblyMergeStrategy in assembly := {
+  case PathList("sbt", "sbt.autoplugins")         => MergeStrategy.first
+  // google dependencies have duplications
+  case PathList("javax", "annotation", xs @ _*)       => MergeStrategy.first
+  case PathList("com", "google", "protobuf", xs @ _*) => MergeStrategy.first
+  case PathList("google", "protobuf", xs @ _*)        => MergeStrategy.first
+  case PathList("protobuf", xs @ _*)                  => MergeStrategy.first
+
+  //javax/annotation/Nonnull$Checker.class
+  /*case PathList(ps @ _*) if ps.last endsWith ".html" => MergeStrategy.first
+  case "application.conf"                            => MergeStrategy.concat
+  case "unwanted.txt"                                => MergeStrategy.discard*/
+  case x => (assemblyMergeStrategy in assembly).value(x)
+},
+assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
+
+     assemblyShadeRules in assembly := shadedPackages.map( pkg =>
+      ShadeRule.rename(s"$pkg.**" -> s"uk.gov.hmrc.sbt-artifactory.shaded.$pkg.@1").inAll
+    ),
+    artifact in (Compile, assembly) := {
+      val art = (artifact in (Compile, assembly)).value
+      art.withClassifier(Some("assembly"))
+    },
+    addArtifact(artifact in (Compile, assembly), assembly),
+
+    /*shadedModules   += "org.foundweekends" % "sbt-bintray",
     shadingRules    ++= shadedPackages.map(ShadingRule.moveUnder(_, "uk.gov.hmrc.sbt-artifactory.shaded")),
     validNamespaces += "uk", // doesn't support nested namespaces (e.g. "uk.gov.hmrc") since it matches all directories in the created jar (including parent directories)
-    validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in root
+    validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in root*/
+
+    publishMavenStyle := false,
+    publishTo := Some(Resolver.file("Unused transient repository", file("target/unusedrepo")))
   )

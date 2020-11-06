@@ -22,7 +22,7 @@ val shadedPackages = Seq(
 )
 
 lazy val project = Project(pluginName, file("."))
-  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, SbtArtifactory, ShadingPlugin)
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, ShadingPlugin)
   .settings(
     majorVersion := 1,
     makePublicallyAvailableOnBintray := true
@@ -61,3 +61,20 @@ lazy val project = Project(pluginName, file("."))
     validNamespaces += "uk", // doesn't support nested namespaces (e.g. "uk.gov.hmrc") since it matches all directories in the created jar (including parent directories)
     validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in root
   )
+
+lazy val adjusted = Project("adjusted", file("adjusted"))
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
+  .settings(
+    name := "sbt-artifactory-adjusted",
+    majorVersion := 1,
+    makePublicallyAvailableOnBintray := true,
+
+    // publish the shaded bin
+    Compile / packageBin := (project / Compile / shadedPackageBin).value,
+
+    // but adjust the dependencies
+    excludeDependencies ++= Seq(
+      ExclusionRule("org.foundweekends", "sbt-bintray"),
+    )
+  )
+  .dependsOn(project)

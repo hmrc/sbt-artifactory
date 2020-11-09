@@ -34,31 +34,16 @@ lazy val root = (project in file("."))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
     commonSettings,
-    skip.in(publish) := true,
-    Compile / scalaSource :=     baseDirectory.value / "madeup",
-    Compile / resources   := Seq(baseDirectory.value / "madeup"),
-    Test    / scalaSource :=     baseDirectory.value / "madeup",
-    Test    / resources   := Seq(baseDirectory.value / "madeup")
+    publish / skip := true
   )
-  .aggregate(
-    assembly,
-    adjusted
-  )
+  .aggregate(adjusted)
 
-lazy val assembly = Project("sbt-artifactory-assembly", file("assembly"))
+lazy val shaded = Project("shaded", file("shaded"))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, ShadingPlugin)
   .settings(
     commonSettings,
-    skip.in(publish) := true, // TODO still publishing ivy.xml (could be SbtShading doesn't respect this setting)
-    Compile / scalaSource :=     baseDirectory.value / "../src/main/scala",
-    Compile / resources   := Seq(baseDirectory.value / "../src/main/resources"),
-    Test    / scalaSource :=     baseDirectory.value / "../src/test/scala",
-    Test    / resources   := Seq(baseDirectory.value / "../src/test/resources"),
-
-    // *********************************
-    // Note: The sbt-scalajs plugin is brought in as a *project* dependency. It is *not* pulling in the plugin for
-    //       the build as you might expect. Code in the plugin is used in the SbtArtifactory object.
-    scalaVersion := "2.12.12",
+    publish / skip := true,
+    // these plugins are library dependencies
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.31"),
     addSbtPlugin("org.foundweekends" % "sbt-bintray" % "0.5.6"
       // exclude "provided" otherwise they will be included in shaded jar
@@ -84,7 +69,7 @@ lazy val assembly = Project("sbt-artifactory-assembly", file("assembly"))
     shadedModules   += "org.foundweekends" % "sbt-bintray",
     shadingRules    ++= shadedPackages.map(ShadingRule.moveUnder(_, "uk.gov.hmrc.sbt-artifactory.shaded")),
     validNamespaces += "uk", // doesn't support nested namespaces (e.g. "uk.gov.hmrc") since it matches all directories in the created jar (including parent directories)
-    validNamespaces += "sbt", // sbt/sbt.autoplugins needs to be in root // TODO there are multiple sbt.autoplugins, we need to ensure that ours wins...
+    validNamespaces += "sbt", // sbt/sbt.autoplugins needs to be in root // Note there are multiple sbt.autoplugins, only ours goes in the shaded jar, so bintray is not being activated
   )
 
 lazy val adjusted = Project(pluginName, file("transient"))
@@ -93,10 +78,10 @@ lazy val adjusted = Project(pluginName, file("transient"))
     commonSettings,
 
     // publish the shaded bin
-    Compile / packageBin := (assembly / Compile / shadedPackageBin).value,
-    Compile / packageSrc := (assembly / Compile / packageSrc      ).value,
-    Compile / packageDoc := (assembly / Compile / packageDoc      ).value,
+    Compile / packageBin := (shaded / Compile / shadedPackageBin).value,
+    Compile / packageSrc := (shaded / Compile / packageSrc      ).value,
+    Compile / packageDoc := (shaded / Compile / packageDoc      ).value,
 
     // but adjust the dependencies
-    libraryDependencies := (assembly / libraryDependencies).value.filterNot(_.name == "sbt-bintray")
+    libraryDependencies := (shaded / libraryDependencies).value.filterNot(_.name == "sbt-bintray")
   )

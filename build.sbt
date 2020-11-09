@@ -46,25 +46,15 @@ lazy val root = (project in file("."))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
     commonSettings,
-    skip in publish := true,
-    Compile / scalaSource :=     baseDirectory.value / "madeup",
-    Compile / resources   := Seq(baseDirectory.value / "madeup"),
-    Test    / scalaSource :=     baseDirectory.value / "madeup",
-    Test    / resources   := Seq(baseDirectory.value / "madeup")
+    publish / skip := true
   )
-  .aggregate(
-    adjusted
-  )
+  .aggregate(adjusted)
 
-lazy val shaded = Project("sbt-artifactory-shaded", file("shaded"))
+lazy val shaded = Project("shaded", file("shaded"))
   .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
     commonSettings,
-    skip in publish := true,
-    Compile / scalaSource :=     baseDirectory.value / "../src/main/scala",
-    Compile / resources   := Seq(baseDirectory.value / "../src/main/resources"),
-    Test    / scalaSource :=     baseDirectory.value / "../src/test/scala",
-    Test    / resources   := Seq(baseDirectory.value / "../src/test/resources"),
+    publish / skip := true,
     // *********************************
     // Note: The sbt-scalajs plugin is brought in as a *project* dependency. It is *not* pulling in the plugin for
     //       the build as you might expect. Code in the plugin is used in the SbtArtifactory object.
@@ -93,9 +83,8 @@ lazy val shaded = Project("sbt-artifactory-shaded", file("shaded"))
 
     assembly / assemblyMergeStrategy := {
       case PathList("sbt", "sbt.autoplugins") =>
-        //MergeStrategy.filterDistinctLines // TODO where has our generated file gone?
-        // Content has not been updated to point to shaded version. We don't want to activate them anyway.
-        MergeStrategy.discard
+        // Not using MergeStrategy.filterDistinctLines since content has not been updated to point to shaded version. We don't want to activate them anyway.
+        MergeStrategy.first // this is ours
       // google dependencies have duplications
       case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "com", "google", "protobuf", xs @ _*) => MergeStrategy.first
       case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "javax", "annotation", xs @ _*)       => MergeStrategy.first

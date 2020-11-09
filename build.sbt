@@ -11,6 +11,7 @@ val pluginName = "sbt-artifactory"
 // On sbt 1.3.x their dependencies are merged before evicting, cause some runtime errors. This
 // seems to be resolved on sbt 1.4.x.
 val shadedPackages = Seq(
+  // bintray and transitives
   "bintry",
   "bintray",
   "com.ning",
@@ -18,21 +19,52 @@ val shadedPackages = Seq(
   "dispatch",
   "org.jboss",
   "org.json4s",
-  "org.slf4j"
+  "org.slf4j",
+  // other dependencies
+  // TODO review what can be brought in as a dependency without conflict
+  "afu",
+  "com",
+  "google",
+  "javax",
+  "jsinterop",
+  "macrocompat",
+  "org",
+  "play",
+  "sbt.testing"
 )
 
-lazy val project = Project(pluginName, file("."))
-  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning/*, SbtArtifactory*/)
+lazy val commonSettings = Seq(
+  organization     := "uk.gov.hmrc",
+  majorVersion     := 1,
+  scalaVersion     := "2.12.12",
+  sbtPlugin        := true,
+  crossSbtVersions := Vector("0.13.18", "1.3.13"),
+  makePublicallyAvailableOnBintray := true
+)
+
+lazy val root = (project in file("."))
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
-    majorVersion := 1/*,
-    makePublicallyAvailableOnBintray := true*/
+    commonSettings,
+    skip in publish := true,
+    Compile / scalaSource :=     baseDirectory.value / "madeup",
+    Compile / resources   := Seq(baseDirectory.value / "madeup"),
+    Test    / scalaSource :=     baseDirectory.value / "madeup",
+    Test    / resources   := Seq(baseDirectory.value / "madeup")
   )
+  .aggregate(
+    adjusted
+  )
+
+lazy val shaded = Project("sbt-artifactory-shaded", file("shaded"))
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
-    sbtPlugin := true,
-
-    publishTo := Some(Resolver.file("Unused transient repository", file("target/unusedrepo"))),
-
-    crossSbtVersions := Vector("0.13.18", "1.3.13"),
+    commonSettings,
+    skip in publish := true,
+    Compile / scalaSource :=     baseDirectory.value / "../src/main/scala",
+    Compile / resources   := Seq(baseDirectory.value / "../src/main/resources"),
+    Test    / scalaSource :=     baseDirectory.value / "../src/test/scala",
+    Test    / resources   := Seq(baseDirectory.value / "../src/test/resources"),
     // *********************************
     // Note: The sbt-scalajs plugin is brought in as a *project* dependency. It is *not* pulling in the plugin for
     //       the build as you might expect. Code in the plugin is used in the SbtArtifactory object.
@@ -56,39 +88,40 @@ lazy val project = Project(pluginName, file("."))
     // sbt_bintray pulls in dispatch-core 0.11.2, which strips out trailing `/`, breaking delete calls to Artifactory
     dependencyOverrides ++= (sbtVersion in pluginCrossBuild) {
       case v if v startsWith "0.13" => Seq("net.databinder.dispatch" %% "dispatch-core" % "0.11.4")
-      case v if v startsWith "1.3" => Seq.empty[ModuleID]
+      case v if v startsWith "1.3"  => Seq.empty[ModuleID]
     }.value,
 
-assemblyMergeStrategy in assembly := {
-  case PathList("sbt", "sbt.autoplugins")         => MergeStrategy.first
-  // google dependencies have duplications
-  case PathList("javax", "annotation", xs @ _*)       => MergeStrategy.first
-  case PathList("com", "google", "protobuf", xs @ _*) => MergeStrategy.first
-  case PathList("google", "protobuf", xs @ _*)        => MergeStrategy.first
-  case PathList("protobuf", xs @ _*)                  => MergeStrategy.first
-
-  //javax/annotation/Nonnull$Checker.class
-  /*case PathList(ps @ _*) if ps.last endsWith ".html" => MergeStrategy.first
-  case "application.conf"                            => MergeStrategy.concat
-  case "unwanted.txt"                                => MergeStrategy.discard*/
-  case x => (assemblyMergeStrategy in assembly).value(x)
-},
-assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
-
-     assemblyShadeRules in assembly := shadedPackages.map( pkg =>
+    assembly / assemblyMergeStrategy := {
+      case PathList("sbt", "sbt.autoplugins") =>
+        //MergeStrategy.filterDistinctLines // TODO where has our generated file gone?
+        // Content has not been updated to point to shaded version. We don't want to activate them anyway.
+        MergeStrategy.discard
+      // google dependencies have duplications
+      case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "com", "google", "protobuf", xs @ _*) => MergeStrategy.first
+      case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "javax", "annotation", xs @ _*)       => MergeStrategy.first
+      case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "google", "protobuf", xs @ _*)        => MergeStrategy.first
+      case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "protobuf", xs @ _*)                  => MergeStrategy.first
+      // default
+      case x => (assembly / assemblyMergeStrategy).value(x)
+    },
+    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false),
+    assembly / assemblyShadeRules := shadedPackages.map(pkg =>
       ShadeRule.rename(s"$pkg.**" -> s"uk.gov.hmrc.sbt-artifactory.shaded.$pkg.@1").inAll
     ),
-    artifact in (Compile, assembly) := {
-      val art = (artifact in (Compile, assembly)).value
-      art.withClassifier(Some("assembly"))
-    },
-    addArtifact(artifact in (Compile, assembly), assembly),
+    Compile / assembly / artifact :=
+      (Compile / assembly / artifact).value
+        .withClassifier(Some("assembly")),
+    addArtifact(Compile / assembly / artifact, assembly)  )
 
-    /*shadedModules   += "org.foundweekends" % "sbt-bintray",
-    shadingRules    ++= shadedPackages.map(ShadingRule.moveUnder(_, "uk.gov.hmrc.sbt-artifactory.shaded")),
-    validNamespaces += "uk", // doesn't support nested namespaces (e.g. "uk.gov.hmrc") since it matches all directories in the created jar (including parent directories)
-    validNamespaces += "sbt" // sbt/sbt.autoplugins needs to be in root*/
+lazy val adjusted = Project(pluginName, file("transient"))
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
+  .settings(
+    commonSettings,
+    // publish the shaded bin
+    Compile / packageBin := (shaded / Compile / assembly  ).value,
+    Compile / packageSrc := (shaded / Compile / packageSrc).value,
+    Compile / packageDoc := (shaded / Compile / packageDoc).value,
 
-    publishMavenStyle := false,
-    publishTo := Some(Resolver.file("Unused transient repository", file("target/unusedrepo")))
-  )
+    // could re-export any dependencies - currently none
+    //libraryDependencies := (shaded / libraryDependencies).value.filterNot(_.name == "sbt-bintray")
+)

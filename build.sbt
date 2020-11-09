@@ -21,16 +21,10 @@ val shadedPackages = Seq(
   "org.json4s",
   "org.slf4j",
   // other dependencies
-  // TODO review what can be brought in as a dependency without conflict
-  "afu",
   "com",
-  "google",
-  "javax",
-  "jsinterop",
   "macrocompat",
-  "org",
-  "play",
-  "sbt.testing"
+  "org.joda",
+  "play"
 )
 
 lazy val commonSettings = Seq(
@@ -55,18 +49,9 @@ lazy val shaded = Project("shaded", file("shaded"))
   .settings(
     commonSettings,
     publish / skip := true,
-    // *********************************
-    // Note: The sbt-scalajs plugin is brought in as a *project* dependency. It is *not* pulling in the plugin for
-    //       the build as you might expect. Code in the plugin is used in the SbtArtifactory object.
-    scalaVersion := "2.12.12",
-    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.31"),
-    addSbtPlugin("org.foundweekends" % "sbt-bintray" % "0.5.6"
-      // exclude "provided" otherwise they will be included in shaded jar
-      // scala-xml contains "scala-xml.properties" which can't be excluded with validNamespaces
-      exclude("org.scala-lang.modules", "scala-xml_2.12") // not a dependency for 2.10 (sbt 0.13)
-      exclude("org.scala-lang", "*")
-    ),
-    // *********************************
+    // these plugins are library dependencies
+    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.31" % Provided), // not included in fatjar, add as a downloadable dependency - it pulls in 20 MB (incl. google libs which have duplications)
+    addSbtPlugin("org.foundweekends" % "sbt-bintray" % "0.5.6"),
     libraryDependencies ++= Seq(
       "com.typesafe.play"     %% "play-json"                  % "2.6.14",
       "org.joda"              % "joda-convert"                % "2.2.1",
@@ -85,11 +70,6 @@ lazy val shaded = Project("shaded", file("shaded"))
       case PathList("sbt", "sbt.autoplugins") =>
         // Not using MergeStrategy.filterDistinctLines since content has not been updated to point to shaded version. We don't want to activate them anyway.
         MergeStrategy.first // this is ours
-      // google dependencies have duplications
-      case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "com", "google", "protobuf", xs @ _*) => MergeStrategy.first
-      case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "javax", "annotation", xs @ _*)       => MergeStrategy.first
-      case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "google", "protobuf", xs @ _*)        => MergeStrategy.first
-      case PathList("uk", "gov", "hmrc", "sbt-artifactory", "shaded", "protobuf", xs @ _*)                  => MergeStrategy.first
       // default
       case x => (assembly / assemblyMergeStrategy).value(x)
     },
@@ -111,6 +91,6 @@ lazy val adjusted = Project(pluginName, file("transient"))
     Compile / packageSrc := (shaded / Compile / packageSrc).value,
     Compile / packageDoc := (shaded / Compile / packageDoc).value,
 
-    // could re-export any dependencies - currently none
-    //libraryDependencies := (shaded / libraryDependencies).value.filterNot(_.name == "sbt-bintray")
+    // add dependencies which were not shaded
+    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.31")
 )

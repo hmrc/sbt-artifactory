@@ -25,7 +25,6 @@ import org.scalatest.matchers.should.Matchers._
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import sbt.{Credentials, DirectCredentials, MultiLogger}
-import com.ning.http.client.Response
 
 import scala.concurrent.ExecutionContext.Implicits.{global => executionContext}
 import scala.concurrent.Future
@@ -48,7 +47,7 @@ class ArtifactoryConnectorSpec extends AnyWordSpec with MockitoSugar with ScalaF
       val request = reqCaptor.getValue.toRequest
       request.getUrl                                    shouldBe s"https://${credentials.host}/artifactory/$repositoryName/${artifact.path}/"
       request.getMethod                                 shouldBe "DELETE"
-      request.getHeaders.getFirstValue("Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+      DispatchCrossSupport.extractRequestHeader(request, "Authorization") shouldBe "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
     }
 
     "return a failure when the delete API call returns an unexpected result" in new Setup {
@@ -84,7 +83,7 @@ class ArtifactoryConnectorSpec extends AnyWordSpec with MockitoSugar with ScalaF
 
     val httpClient = mock[Http]
 
-    val response = mock[Response]
+    val response = mock[DispatchCrossSupport.Response]
     when(httpClient(any[Req])(is(executionContext))).thenReturn(Future.successful(response))
 
     val repositoryName = "hmrc-releases-local"

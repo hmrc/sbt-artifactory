@@ -18,7 +18,6 @@ package uk.gov.hmrc
 
 import _root_.bintray.BintrayPlugin
 import bintray.BintrayKeys._
-import dispatch.Http
 import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
 import sbt.Classpaths.{getPublishTo, publishTask}
@@ -172,14 +171,14 @@ object SbtArtifactory extends sbt.AutoPlugin{
       } yield s"releases-lab$labNum").getOrElse("releases")
     }
 
-  private def artifactoryConnector = new ArtifactoryConnector(
-    Http,
+  private def artifactoryConnector(repositoryName: String) = new ArtifactoryConnector(
+    DispatchCrossSupport.http,
     directCredentials(
       getOrError(maybeArtifactoryUri, artifactoryUriEnvKey),
       getOrError(maybeArtifactoryUsername, artifactoryUsernameEnvKey),
       getOrError(maybeArtifactoryPassword, artifactoryPasswordEnvKey)
     ),
-    _: String
+    repositoryName
   )
 
   private def getOrError(option: Option[String], keyName: String) = option.getOrElse {

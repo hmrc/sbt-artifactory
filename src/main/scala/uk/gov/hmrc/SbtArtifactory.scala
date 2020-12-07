@@ -125,7 +125,10 @@ object SbtArtifactory extends sbt.AutoPlugin{
           streams.value.log.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
         }
       }
-    }).result.value,// fail silently
+    }).result.value.toEither.left.foreach {
+      //don't propagate exception
+      incomplete => streams.value.log.info(s"SbtArtifactoryPlugin - Failed to unpublish from Bintray:\n $incomplete")
+    },
     unpublish := Def.sequential(
       unpublishFromArtifactory,
       unpublishFromBintray
@@ -142,7 +145,10 @@ object SbtArtifactory extends sbt.AutoPlugin{
           streams.value.log.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
         }
       }
-    }).value,
+    }).result.value.toEither.left.foreach {
+      //don't propagate exception
+      incomplete => streams.value.log.info(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
+    },
     publish := Def.sequential(
       publishToArtifactory,
       publishToBintray

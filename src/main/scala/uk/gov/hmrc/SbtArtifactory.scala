@@ -41,7 +41,9 @@ object SbtArtifactory extends sbt.AutoPlugin{
   private lazy val maybeArtifactoryUsername   = sys.env.get(artifactoryUsernameEnvKey)
   private lazy val maybeArtifactoryPassword   = sys.env.get(artifactoryPasswordEnvKey)
 
-  val artifactoryLabsPattern: Regex = ".*lab([0-9]{2}).*".r
+  private lazy val maybeBintrayOrg            = sys.props.get("bintray.org")
+
+  private val artifactoryLabsPattern: Regex = ".*lab([0-9]{2}).*".r
 
   private lazy val maybeArtifactoryCredentials = for {
     uri      <- maybeArtifactoryUri
@@ -66,10 +68,13 @@ object SbtArtifactory extends sbt.AutoPlugin{
 
   override val projectSettings: Seq[Def.Setting[_]] = Seq(
     publishMavenStyle := !sbtPlugin.value,
-    bintrayOrganization := Some("hmrc"),
+    bintrayOrganization := maybeBintrayOrg.orElse(Some("hmrc")).map { org =>
+      sLog.value.info(s"SbtArtifactoryPlugin - Resolved Bintray organisation to be '$org'")
+      org
+    },
     bintrayRepository := {
       val resolved = bintrayRepoKey(sbtPlugin.value, maybeArtifactoryUri)
-      sLog.value.info(s"SbtArtifactoryPlugin - Resolved bintray repo to be '$resolved'")
+      sLog.value.info(s"SbtArtifactoryPlugin - Resolved Bintray repository to be '$resolved'")
       resolved
     },
     bintrayPublishConfiguration := PublishConfigurationSupport.withResolverName(publishConfiguration.value, getPublishTo((publishTo in bintray).value).name),
@@ -120,7 +125,10 @@ object SbtArtifactory extends sbt.AutoPlugin{
           streams.value.log.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
         }
       }
-    }).result.value,// fail silently
+    }).result.value.toEither.left.foreach {
+      //don't propagate exception
+      incomplete => streams.value.log.info(s"SbtArtifactoryPlugin - Failed to unpublish from Bintray:\n $incomplete")
+    },
     unpublish := Def.sequential(
       unpublishFromArtifactory,
       unpublishFromBintray
@@ -137,13 +145,16 @@ object SbtArtifactory extends sbt.AutoPlugin{
           streams.value.log.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
         }
       }
-    }).value,
+    }).result.value.toEither.left.foreach {
+      //don't propagate exception
+      incomplete => streams.value.log.info(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
+    },
     publish := Def.sequential(
       publishToArtifactory,
       publishToBintray
     ).value,
     publishAndDistribute := {
-      sLog.value.info(s"SbtArtifactoryPlugin - 'publishToBintray' is deprecated. Please use publish instead")
+      sLog.value.info(s"SbtArtifactoryPlugin - 'publishAndDistribute' is deprecated. Please use publish instead")
       publish.value
     }
   )
@@ -181,7 +192,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
     repositoryName
   )
 
-  private def getOrError(option: Option[String], keyName: String) = option.getOrElse {
+  private def getOrError(option: Option[String], keyName: String): String = option.getOrElse {
     sys.error(s"SbtArtifactoryPlugin - No $keyName environment variable found")
   }
 

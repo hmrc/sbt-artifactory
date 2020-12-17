@@ -103,7 +103,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
         "Artifactory Realm" at s"$uri/${repoKey.value}"
     },
     credentials ++= {
-      streams.value.log.info(
+      sLog.value.info(
         s"SbtArtifactoryPlugin - Configuring Artifactory... " +
           s"Host: ${maybeArtifactoryUri.getOrElse("not set")}. " +
           s"User: ${maybeArtifactoryUsername.getOrElse("not set")}. " +
@@ -112,23 +112,23 @@ object SbtArtifactory extends sbt.AutoPlugin{
       maybeArtifactoryCredentials.toSeq
     },
     unpublishFromArtifactory := {
-      streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Artifactory...")
+      sLog.value.info("SbtArtifactoryPlugin - Unpublishing from Artifactory...")
         artifactoryConnector(repoKey.value)
-          .deleteVersion(artifactDescription.value, streams.value.log)
+          .deleteVersion(artifactDescription.value, sLog.value)
           .awaitResult
     },
     unpublishFromBintray := Def.taskDyn {
       if (artifactDescription.value.publicArtifact) {
-        streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Bintray...")
+        sLog.value.info("SbtArtifactoryPlugin - Unpublishing from Bintray...")
         bintrayUnpublish.toTask
           //don't propagate exception
           .result.value.toEither.fold(
-            incomplete => Def.task { streams.value.log.info(s"SbtArtifactoryPlugin - Failed to unpublish from Bintray:\n $incomplete") },
+            incomplete => Def.task { sLog.value.warn(s"SbtArtifactoryPlugin - Failed to unpublish from Bintray:\n $incomplete") },
             r          => Def.task { r }
           )
       } else
         Def.task {
-          streams.value.log.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
+          sLog.value.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
         }
     }.value,
     unpublish := Def.sequential(
@@ -138,20 +138,20 @@ object SbtArtifactory extends sbt.AutoPlugin{
     publishToArtifactory := publishTask(publishConfiguration, deliver).value,
     publishToBintray := Def.taskDyn {
       if (artifactDescription.value.publicArtifact) {
-        streams.value.log.info("SbtArtifactoryPlugin - Publishing to Bintray...")
+        sLog.value.info("SbtArtifactoryPlugin - Publishing to Bintray...")
         bintrayRelease
           .dependsOn(publishTask(bintrayPublishConfiguration, deliver))
           .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
           .result.value.toEither.fold(
             incomplete => Def.task {
-                            streams.value.log.info(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
                             if (failOnBintrayError) throw incomplete
+                            else sLog.value.warn(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
                           },
             _          => Def.task { () }
           )
       } else
         Def.task {
-          streams.value.log.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
+          sLog.value.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
         }
     }.value,
     publish := Def.sequential(

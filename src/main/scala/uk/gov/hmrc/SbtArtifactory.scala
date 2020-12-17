@@ -42,6 +42,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
   private lazy val maybeArtifactoryPassword   = sys.env.get(artifactoryPasswordEnvKey)
 
   private lazy val maybeBintrayOrg            = sys.props.get("bintray.org")
+  private lazy val suppressBintrayError       = sys.props.get("bintray.suppressError").map(_ == "true").getOrElse(false)
 
   private val artifactoryLabsPattern: Regex = ".*lab([0-9]{2}).*".r
 
@@ -102,7 +103,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
         "Artifactory Realm" at s"$uri/${repoKey.value}"
     },
     credentials ++= {
-      streams.value.log.info(
+      sLog.value.info(
         s"SbtArtifactoryPlugin - Configuring Artifactory... " +
           s"Host: ${maybeArtifactoryUri.getOrElse("not set")}. " +
           s"User: ${maybeArtifactoryUsername.getOrElse("not set")}. " +
@@ -111,44 +112,49 @@ object SbtArtifactory extends sbt.AutoPlugin{
       maybeArtifactoryCredentials.toSeq
     },
     unpublishFromArtifactory := {
-      streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Artifactory...")
+      sLog.value.info("SbtArtifactoryPlugin - Unpublishing from Artifactory...")
         artifactoryConnector(repoKey.value)
-          .deleteVersion(artifactDescription.value, streams.value.log)
+          .deleteVersion(artifactDescription.value, sLog.value)
           .awaitResult
     },
-    unpublishFromBintray := Def.taskDyn({
+    unpublishFromBintray := Def.taskDyn {
       if (artifactDescription.value.publicArtifact) {
-        streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Bintray...")
+        sLog.value.info("SbtArtifactoryPlugin - Unpublishing from Bintray...")
         bintrayUnpublish.toTask
-      } else {
+          //don't propagate exception
+          .result.value.toEither.fold(
+            incomplete => Def.task { sLog.value.warn(s"SbtArtifactoryPlugin - Failed to unpublish from Bintray:\n $incomplete") },
+            r          => Def.task { r }
+          )
+      } else
         Def.task {
-          streams.value.log.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
+          sLog.value.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
         }
-      }
-    }).result.value.toEither.left.foreach {
-      //don't propagate exception
-      incomplete => streams.value.log.info(s"SbtArtifactoryPlugin - Failed to unpublish from Bintray:\n $incomplete")
-    },
+    }.value,
     unpublish := Def.sequential(
       unpublishFromArtifactory,
       unpublishFromBintray
     ).value,
     publishToArtifactory := publishTask(publishConfiguration, deliver).value,
-    publishToBintray := Def.taskDyn({
-      if(artifactDescription.value.publicArtifact) {
-        streams.value.log.info("SbtArtifactoryPlugin - Publishing to Bintray...")
+    publishToBintray := Def.taskDyn {
+      if (artifactDescription.value.publicArtifact) {
+        sLog.value.info("SbtArtifactoryPlugin - Publishing to Bintray...")
         bintrayRelease
           .dependsOn(publishTask(bintrayPublishConfiguration, deliver))
           .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
-      } else {
-        Def.task{
-          streams.value.log.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
+          .result.value.toEither.fold(
+            incomplete => Def.task {
+                            if (suppressBintrayError)
+                              sLog.value.warn(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
+                            else throw incomplete
+                          },
+            _          => Def.task { () }
+          )
+      } else
+        Def.task {
+          sLog.value.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
         }
-      }
-    }).result.value.toEither.left.foreach {
-      //don't propagate exception
-      incomplete => streams.value.log.info(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
-    },
+    }.value,
     publish := Def.sequential(
       publishToArtifactory,
       publishToBintray

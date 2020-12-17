@@ -42,7 +42,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
   private lazy val maybeArtifactoryPassword   = sys.env.get(artifactoryPasswordEnvKey)
 
   private lazy val maybeBintrayOrg            = sys.props.get("bintray.org")
-  private lazy val failOnBintrayError         = sys.props.get("bintray.fail_on_error").map(_ == "true").getOrElse(false)
+  private lazy val suppressBintrayError       = sys.props.get("bintray.suppressError").map(_ == "true").getOrElse(false)
 
   private val artifactoryLabsPattern: Regex = ".*lab([0-9]{2}).*".r
 
@@ -144,8 +144,9 @@ object SbtArtifactory extends sbt.AutoPlugin{
           .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
           .result.value.toEither.fold(
             incomplete => Def.task {
-                            if (failOnBintrayError) throw incomplete
-                            else sLog.value.warn(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
+                            if (suppressBintrayError)
+                              sLog.value.warn(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
+                            else throw incomplete
                           },
             _          => Def.task { () }
           )

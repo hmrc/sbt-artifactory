@@ -27,12 +27,11 @@ import sbt.{Def, PublishConfiguration, Resolver, taskKey, _}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.language.postfixOps
 import scala.util.matching.Regex
 
-object SbtArtifactory extends sbt.AutoPlugin{
+object SbtArtifactory extends sbt.AutoPlugin {
 
-  private val distributionTimeout = 1 minute
+  private val distributionTimeout = 1.minute
 
   private val artifactoryUriEnvKey            = "ARTIFACTORY_URI"
   private val artifactoryUsernameEnvKey       = "ARTIFACTORY_USERNAME"
@@ -68,16 +67,9 @@ object SbtArtifactory extends sbt.AutoPlugin{
   import autoImport._
 
   override val projectSettings: Seq[Def.Setting[_]] = Seq(
-    publishMavenStyle := !sbtPlugin.value,
-    bintrayOrganization := maybeBintrayOrg.orElse(Some("hmrc")).map { org =>
-      sLog.value.info(s"SbtArtifactoryPlugin - Resolved Bintray organisation to be '$org'")
-      org
-    },
-    bintrayRepository := {
-      val resolved = bintrayRepoKey(sbtPlugin.value, maybeArtifactoryUri)
-      sLog.value.info(s"SbtArtifactoryPlugin - Resolved Bintray repository to be '$resolved'")
-      resolved
-    },
+    publishMavenStyle   := !sbtPlugin.value,
+    bintrayOrganization := maybeBintrayOrg.orElse(Some("hmrc")),
+    bintrayRepository   := bintrayRepoKey(sbtPlugin.value, maybeArtifactoryUri),
     bintrayPublishConfiguration := PublishConfigurationSupport.withResolverName(publishConfiguration.value, getPublishTo((publishTo in bintray).value).name),
     //Overriding the default otherResolvers is required to also initialise the publishTo in bintray resolver
     otherResolvers := Resolver.publishMavenLocal +: (publishTo.value.toVector ++ (publishTo in bintray).value.toVector),
@@ -104,22 +96,18 @@ object SbtArtifactory extends sbt.AutoPlugin{
     },
     credentials ++= {
       sLog.value.info(
-        s"SbtArtifactoryPlugin - Configuring Artifactory... " +
-          s"Host: ${maybeArtifactoryUri.getOrElse("not set")}. " +
-          s"User: ${maybeArtifactoryUsername.getOrElse("not set")}. " +
-          s"Password defined: ${maybeArtifactoryPassword.isDefined}")
-
+        s"SbtArtifactoryPlugin (${name.value}) - Configuring Artifactory credentials: $maybeArtifactoryCredentials")
       maybeArtifactoryCredentials.toSeq
     },
     unpublishFromArtifactory := {
-      sLog.value.info("SbtArtifactoryPlugin - Unpublishing from Artifactory...")
+      sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Unpublishing from Artifactory...")
         artifactoryConnector(repoKey.value)
           .deleteVersion(artifactDescription.value, sLog.value)
           .awaitResult
     },
     unpublishFromBintray := Def.taskDyn {
       if (artifactDescription.value.publicArtifact) {
-        sLog.value.info("SbtArtifactoryPlugin - Unpublishing from Bintray...")
+        sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Unpublishing from Bintray (repository: ${bintrayRepository.value}, organisation: ${bintrayOrganization.value})...")
         bintrayUnpublish.toTask
           //don't propagate exception
           .result.value.toEither.fold(
@@ -128,31 +116,34 @@ object SbtArtifactory extends sbt.AutoPlugin{
           )
       } else
         Def.task {
-          sLog.value.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
+          sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Nothing to unpublish from Bintray...")
         }
     }.value,
     unpublish := Def.sequential(
       unpublishFromArtifactory,
       unpublishFromBintray
     ).value,
-    publishToArtifactory := publishTask(publishConfiguration, deliver).value,
+    publishToArtifactory := {
+      sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Publishing to Artifactory...")
+      publishTask(publishConfiguration, deliver).value
+    },
     publishToBintray := Def.taskDyn {
       if (artifactDescription.value.publicArtifact) {
-        sLog.value.info("SbtArtifactoryPlugin - Publishing to Bintray...")
+        sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Publishing to Bintray (repository: ${bintrayRepository.value}, organisation: ${bintrayOrganization.value})...")
         bintrayRelease
           .dependsOn(publishTask(bintrayPublishConfiguration, deliver))
           .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
           .result.value.toEither.fold(
             incomplete => Def.task {
                             if (suppressBintrayError)
-                              sLog.value.warn(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
+                              sLog.value.warn(s"SbtArtifactoryPlugin (${name.value}) - Failed to publish to Bintray:\n $incomplete")
                             else throw incomplete
                           },
             _          => Def.task { () }
           )
       } else
         Def.task {
-          sLog.value.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
+          sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Not publishing to Bintray...")
         }
     }.value,
     publish := Def.sequential(
@@ -160,7 +151,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
       publishToBintray
     ).value,
     publishAndDistribute := {
-      sLog.value.info(s"SbtArtifactoryPlugin - 'publishAndDistribute' is deprecated. Please use publish instead")
+      sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - 'publishAndDistribute' is deprecated. Please use publish instead")
       publish.value
     }
   )
@@ -183,9 +174,10 @@ object SbtArtifactory extends sbt.AutoPlugin{
     } else {
       // Determine whether we're pointing at labs or live artifactory, and resolve to use the correct releases repo
       (for {
-        artifactoryUri <- artifactoryUriToResolve
-        labNum <- artifactoryLabsPattern.findFirstMatchIn(artifactoryUri).map(_.group(1))
-      } yield s"releases-lab$labNum").getOrElse("releases")
+         artifactoryUri <- artifactoryUriToResolve
+         labNum         <- artifactoryLabsPattern.findFirstMatchIn(artifactoryUri).map(_.group(1))
+       } yield s"releases-lab$labNum"
+      ).getOrElse("releases")
     }
 
   private def artifactoryConnector(repositoryName: String) = new ArtifactoryConnector(

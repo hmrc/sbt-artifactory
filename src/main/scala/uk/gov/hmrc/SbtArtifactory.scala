@@ -22,7 +22,6 @@ import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
 import sbt.Classpaths.{getPublishTo, publishTask}
 import sbt.Keys.{publish, sbtPlugin, _}
-import sbt.Resolver.ivyStylePatterns
 import sbt.{Def, PublishConfiguration, Resolver, taskKey, _}
 
 import scala.concurrent.duration._
@@ -45,23 +44,25 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   private val artifactoryLabsPattern: Regex = ".*lab([0-9]{2}).*".r
 
-  private lazy val maybeArtifactoryCredentials = for {
-    uri      <- maybeArtifactoryUri
-    username <- maybeArtifactoryUsername
-    password <- maybeArtifactoryPassword
-  } yield directCredentials(uri, username, password)
+  private def maybeArtifactoryCredentials =
+    for {
+      uri      <- maybeArtifactoryUri
+      username <- maybeArtifactoryUsername
+      password <- maybeArtifactoryPassword
+    } yield directCredentials(uri, username, password)
 
   object autoImport {
-    val unpublishFromArtifactory = taskKey[Unit]("Unpublish from Artifactory")
-    val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray")
-    val unpublish = taskKey[Unit]("Unpublish from Artifactory and from Bintray")
-    val publishToBintray = taskKey[Unit]("Publish artifact to Artifactory")
-    val publishToArtifactory = taskKey[Unit]("Publish artifact to Bintray")
-    val publishAndDistribute = taskKey[Unit]("Deprecated - please use publishAll instead")
     val makePublicallyAvailableOnBintray = settingKey[Boolean]("Indicates whether an artifact is public and should be published to Bintray")
-    val repoKey = settingKey[String]("Artifactory repository name")
-    val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
-    val bintrayPublishConfiguration = taskKey[PublishConfiguration]("Configuration for publishing to a Bintray repository")
+    val repoKey                          = settingKey[String]("Artifactory repository name")
+    val artifactDescription              = settingKey[ArtifactDescription]("Artifact description")
+
+    val unpublishFromArtifactory         = taskKey[Unit]("Unpublish from Artifactory")
+    val unpublishFromBintray             = taskKey[Unit]("Unpublish from Bintray")
+    val unpublish                        = taskKey[Unit]("Unpublish from Artifactory and from Bintray")
+    val publishToBintray                 = taskKey[Unit]("Publish artifact to Artifactory")
+    val publishToArtifactory             = taskKey[Unit]("Publish artifact to Bintray")
+    val publishAndDistribute             = taskKey[Unit]("Deprecated - please use publishAll instead")
+    val bintrayPublishConfiguration      = taskKey[PublishConfiguration]("Configuration for publishing to a Bintray repository")
   }
 
   import autoImport._
@@ -89,21 +90,23 @@ object SbtArtifactory extends sbt.AutoPlugin {
     repoKey := artifactoryRepoKey(sbtPlugin.value, makePublicallyAvailableOnBintray.value),
     publishMavenStyle := !sbtPlugin.value,
     publishTo := maybeArtifactoryUri.map { uri =>
-      if (sbtPlugin.value)
-        Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(ivyStylePatterns)
-      else
-        "Artifactory Realm" at s"$uri/${repoKey.value}"
+      val pattern = if (sbtPlugin.value)
+                      Resolver.ivyStylePatterns
+                    else
+                      Resolver.mavenStylePatterns
+      Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(pattern)
     },
     credentials ++= {
       sLog.value.info(
-        s"SbtArtifactoryPlugin (${name.value}) - Configuring Artifactory credentials: $maybeArtifactoryCredentials")
+        s"SbtArtifactoryPlugin (${name.value}) - Configuring Artifactory credentials: $maybeArtifactoryCredentials"
+      )
       maybeArtifactoryCredentials.toSeq
     },
     unpublishFromArtifactory := {
       sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Unpublishing from Artifactory...")
-        artifactoryConnector(repoKey.value)
-          .deleteVersion(artifactDescription.value, sLog.value)
-          .awaitResult
+      artifactoryConnector(repoKey.value)
+        .deleteVersion(artifactDescription.value, sLog.value)
+        .awaitResult
     },
     unpublishFromBintray := Def.taskDyn {
       if (artifactDescription.value.publicArtifact) {
@@ -183,9 +186,9 @@ object SbtArtifactory extends sbt.AutoPlugin {
   private def artifactoryConnector(repositoryName: String) = new ArtifactoryConnector(
     DispatchCrossSupport.http,
     directCredentials(
-      getOrError(maybeArtifactoryUri, artifactoryUriEnvKey),
-      getOrError(maybeArtifactoryUsername, artifactoryUsernameEnvKey),
-      getOrError(maybeArtifactoryPassword, artifactoryPasswordEnvKey)
+      uri      = getOrError(maybeArtifactoryUri, artifactoryUriEnvKey),
+      userName = getOrError(maybeArtifactoryUsername, artifactoryUsernameEnvKey),
+      password = getOrError(maybeArtifactoryPassword, artifactoryPasswordEnvKey)
     ),
     repositoryName
   )

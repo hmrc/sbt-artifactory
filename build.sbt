@@ -22,7 +22,7 @@ val sbtV = (sbtBinaryVersion in pluginCrossBuild)
 val scalaV = (scalaBinaryVersion in update)
 
 lazy val project = Project(name, file("."))
-  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
+  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning, BuildInfoPlugin)
   .settings(
     majorVersion := 1,
     makePublicallyAvailableOnBintray := true
@@ -41,4 +41,8 @@ lazy val project = Project(name, file("."))
       "org.scalatestplus"     %% "scalatestplus-mockito"      % "1.0.0-M2" % Test,
       "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test, // replaces pegdown for newer scalatest
     ) ++ dispatch.value.toSeq
+  )
+  .settings(
+    buildInfoKeys    := Seq[BuildInfoKey](version),
+    buildInfoPackage := "uk.gov.hmrc.sbtartifactory"
   )

@@ -33,24 +33,14 @@ object SbtArtifactory extends sbt.AutoPlugin {
 
   private val distributionTimeout = 1.minute
 
-  private val artifactoryUriEnvKey            = "ARTIFACTORY_URI"
-  private val artifactoryUsernameEnvKey       = "ARTIFACTORY_USERNAME"
-  private val artifactoryPasswordEnvKey       = "ARTIFACTORY_PASSWORD"
-  private lazy val maybeArtifactoryUri        = sys.env.get(artifactoryUriEnvKey)
-  private lazy val maybeArtifactoryUsername   = sys.env.get(artifactoryUsernameEnvKey)
-  private lazy val maybeArtifactoryPassword   = sys.env.get(artifactoryPasswordEnvKey)
+  private lazy val maybeArtifactoryUri        = sys.env.get("ARTIFACTORY_URI")
+  private lazy val maybeArtifactoryUsername   = sys.env.get("ARTIFACTORY_USERNAME")
+  private lazy val maybeArtifactoryPassword   = sys.env.get("ARTIFACTORY_PASSWORD")
 
   private lazy val maybeBintrayOrg            = sys.props.get("bintray.org")
   private lazy val suppressBintrayError       = sys.props.get("bintray.suppressError").map(_ == "true").getOrElse(false)
 
   private val artifactoryLabsPattern: Regex = ".*lab([0-9]{2}).*".r
-
-  private def maybeArtifactoryCredentials =
-    for {
-      uri      <- maybeArtifactoryUri
-      username <- maybeArtifactoryUsername
-      password <- maybeArtifactoryPassword
-    } yield directCredentials(uri, username, password)
 
   object autoImport {
     val makePublicallyAvailableOnBintray = settingKey[Boolean]("Indicates whether an artifact is public and should be published to Bintray")
@@ -184,27 +174,24 @@ object SbtArtifactory extends sbt.AutoPlugin {
       ).getOrElse("releases")
     }
 
-  private def artifactoryConnector(repositoryName: String) = new ArtifactoryConnector(
-    DispatchCrossSupport.http,
-    directCredentials(
-      uri      = getOrError(maybeArtifactoryUri, artifactoryUriEnvKey),
-      userName = getOrError(maybeArtifactoryUsername, artifactoryUsernameEnvKey),
-      password = getOrError(maybeArtifactoryPassword, artifactoryPasswordEnvKey)
-    ),
-    repositoryName
-  )
+  private def maybeArtifactoryCredentials =
+    for {
+      uri      <- maybeArtifactoryUri
+      username <- maybeArtifactoryUsername
+      password <- maybeArtifactoryPassword
+    } yield Credentials(
+        realm    = "Artifactory Realm",
+        host     = new URI(uri).getHost,
+        userName = username,
+        passwd   = password
+      ).asInstanceOf[DirectCredentials]
 
-  private def getOrError(option: Option[String], keyName: String): String = option.getOrElse {
-    sys.error(s"SbtArtifactoryPlugin - No $keyName environment variable found")
-  }
-
-  private def directCredentials(uri: String, userName: String, password: String): DirectCredentials =
-    Credentials(
-      realm    = "Artifactory Realm",
-      host     = new URI(uri).getHost,
-      userName = userName,
-      passwd   = password
-    ).asInstanceOf[DirectCredentials]
+  private def artifactoryConnector(repositoryName: String): ArtifactoryConnector =
+    new ArtifactoryConnector(
+      httpClient     = DispatchCrossSupport.http,
+      credentials    = maybeArtifactoryCredentials.getOrElse(sys.error(s"SbtArtifactoryPlugin - No credential was found found")),
+      repositoryName = repositoryName
+    )
 
   def msg(projectName: String, msg: String): String =
     s"SbtArtifactoryPlugin [${BuildInfo.version}] ($projectName) - $msg"

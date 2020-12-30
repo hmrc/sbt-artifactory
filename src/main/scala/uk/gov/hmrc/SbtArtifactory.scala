@@ -23,6 +23,7 @@ import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
 import sbt.Classpaths.{getPublishTo, publishTask}
 import sbt.Keys.{publish, sbtPlugin, _}
 import sbt.{Def, PublishConfiguration, Resolver, taskKey, _}
+import uk.gov.hmrc.sbtartifactory.BuildInfo
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -97,29 +98,29 @@ object SbtArtifactory extends sbt.AutoPlugin {
       Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(pattern)
     },
     credentials ++= {
-      sLog.value.info(
-        s"SbtArtifactoryPlugin (${name.value}) - Configuring Artifactory credentials: $maybeArtifactoryCredentials"
-      )
+      val credString = // DirectCredentials.toString is not implemented for sbt 0.13
+                       maybeArtifactoryCredentials.map(cred => s"DirectCredentials(${cred.realm}, ${cred.host}, ${cred.userName}, ****)")
+      sLog.value.info(msg(name.value, s"Configuring Artifactory credentials: $credString"))
       maybeArtifactoryCredentials.toSeq
     },
     unpublishFromArtifactory := {
-      sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Unpublishing from Artifactory...")
+      sLog.value.info(msg(name.value, "Unpublishing from Artifactory..."))
       artifactoryConnector(repoKey.value)
         .deleteVersion(artifactDescription.value, sLog.value)
         .awaitResult
     },
     unpublishFromBintray := Def.taskDyn {
       if (artifactDescription.value.publicArtifact) {
-        sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Unpublishing from Bintray (repository: ${bintrayRepository.value}, organisation: ${bintrayOrganization.value})...")
+        sLog.value.info(msg(name.value, s"Unpublishing from Bintray (repository: ${bintrayRepository.value}, organisation: ${bintrayOrganization.value})..."))
         bintrayUnpublish.toTask
           //don't propagate exception
           .result.value.toEither.fold(
-            incomplete => Def.task { sLog.value.warn(s"SbtArtifactoryPlugin - Failed to unpublish from Bintray:\n $incomplete") },
+            incomplete => Def.task { sLog.value.warn(msg(name.value, s"Failed to unpublish from Bintray:\n $incomplete")) },
             r          => Def.task { r }
           )
       } else
         Def.task {
-          sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Nothing to unpublish from Bintray...")
+          sLog.value.info(msg(name.value, s"Nothing to unpublish from Bintray..."))
         }
     }.value,
     unpublish := Def.sequential(
@@ -127,26 +128,26 @@ object SbtArtifactory extends sbt.AutoPlugin {
       unpublishFromBintray
     ).value,
     publishToArtifactory := {
-      sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Publishing to Artifactory...")
+      sLog.value.info(msg(name.value, "Publishing to Artifactory..."))
       publishTask(publishConfiguration, deliver).value
     },
     publishToBintray := Def.taskDyn {
       if (artifactDescription.value.publicArtifact) {
-        sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Publishing to Bintray (repository: ${bintrayRepository.value}, organisation: ${bintrayOrganization.value})...")
+        sLog.value.info(msg(name.value, s"Publishing to Bintray (repository: ${bintrayRepository.value}, organisation: ${bintrayOrganization.value})..."))
         bintrayRelease
           .dependsOn(publishTask(bintrayPublishConfiguration, deliver))
           .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
           .result.value.toEither.fold(
             incomplete => Def.task {
                             if (suppressBintrayError)
-                              sLog.value.warn(s"SbtArtifactoryPlugin (${name.value}) - Failed to publish to Bintray:\n $incomplete")
+                              sLog.value.warn(msg(name.value, s"Failed to publish to Bintray:\n $incomplete"))
                             else throw incomplete
                           },
             _          => Def.task { () }
           )
       } else
         Def.task {
-          sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - Not publishing to Bintray...")
+          sLog.value.info(msg(name.value, s"Not publishing to Bintray..."))
         }
     }.value,
     publish := Def.sequential(
@@ -154,7 +155,7 @@ object SbtArtifactory extends sbt.AutoPlugin {
       publishToBintray
     ).value,
     publishAndDistribute := {
-      sLog.value.info(s"SbtArtifactoryPlugin (${name.value}) - 'publishAndDistribute' is deprecated. Please use publish instead")
+      sLog.value.info(msg(name.value, s"'publishAndDistribute' is deprecated. Please use publish instead"))
       publish.value
     }
   )
@@ -204,6 +205,9 @@ object SbtArtifactory extends sbt.AutoPlugin {
       userName = userName,
       passwd   = password
     ).asInstanceOf[DirectCredentials]
+
+  def msg(projectName: String, msg: String): String =
+    s"SbtArtifactoryPlugin [${BuildInfo.version}] ($projectName) - $msg"
 
   private implicit class FutureOps[T](future: Future[T]) {
     def awaitResult: T = Await.result(future, distributionTimeout)

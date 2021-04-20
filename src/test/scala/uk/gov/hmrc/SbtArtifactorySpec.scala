@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 HM Revenue & Customs
+ * Copyright 2021 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,24 +38,4 @@ class SbtArtifactorySpec extends AnyWordSpec with Matchers with TableDrivenPrope
       }
     }
   }
-
-  "bintrayRepoKey" should {
-    "resolve for live build plugin" in {
-      SbtArtifactory.bintrayRepoKey(isSbtPlugin = true, Some("https://artefacts.tax.service.gov.uk/artifactory")) shouldBe "sbt-plugin-releases"
-    }
-    "resolve for lab build plugin" in {
-      SbtArtifactory.bintrayRepoKey(isSbtPlugin = true, Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "sbt-plugin-releases"
-    }
-    "resolve for live build library when not set" in {
-      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, None) shouldBe "releases"
-    }
-    "resolve for labs build library" in {
-      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab03.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases-lab03"
-    }
-    "resolve to releases when regex doesn't match" in {
-      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab3.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
-      SbtArtifactory.bintrayRepoKey(isSbtPlugin = false, Some("https://lab.artefacts.tax.service.gov.uk/artifactory")) shouldBe "releases"
-    }
-  }
-
 }

@@ -21,13 +21,14 @@ import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
 import sbt.Classpaths.publishTask
 import sbt.Keys._
 import sbt._
+import uk.gov.hmrc.sbtsettingkeys.Keys.isPublicArtefact
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
 object SbtArtifactory extends sbt.AutoPlugin{
 
-  private val distributionTimeout = 1 minute
+  private val distributionTimeout = 1.minute
 
   private val currentVersion = getClass.getPackage.getImplementationVersion
 
@@ -36,10 +37,9 @@ object SbtArtifactory extends sbt.AutoPlugin{
   private lazy val maybeArtifactoryPassword   = sys.env.get("ARTIFACTORY_PASSWORD")
 
   object autoImport {
-    val makePublicallyAvailableOnBintray = settingKey[Boolean]("Indicates whether an artifact is public and should be published to Bintray")
-    val repoKey                          = settingKey[String]("Artifactory repository name")
-    val artifactDescription              = settingKey[ArtifactDescription]("Artifact description")
-    val unpublish                        = taskKey[Unit]("Unpublish from Artifactory")
+    val repoKey             = settingKey[String]("Artifactory repository name")
+    val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
+    val unpublish           = taskKey[Unit]("Unpublish from Artifactory")
   }
 
   import autoImport._
@@ -62,7 +62,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
     publishMavenStyle := !sbtPlugin.value,
     publishTo := maybeArtifactoryUri.map { uri =>
       if (sbtPlugin.value)
-        Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(ivyStylePatterns)
+        Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(Resolver.ivyStylePatterns)
       else
         "Artifactory Realm" at s"$uri/${repoKey.value}"
     },
@@ -82,7 +82,7 @@ object SbtArtifactory extends sbt.AutoPlugin{
     },
     publish := {
       sLog.value.info(message(name.value, "Publishing to Artifactory..."))
-      //required for sbt 0.13
+      // this deprecated function is required for sbt 0.13
       publishTask(publishConfiguration, deliver).value
     }
   )
@@ -118,5 +118,4 @@ object SbtArtifactory extends sbt.AutoPlugin{
 
   private def message(projectName: String, msg: String): String =
     s"SbtArtifactoryPlugin [$currentVersion] ($projectName) - $msg"
-
 }

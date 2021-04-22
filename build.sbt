@@ -6,12 +6,9 @@ import uk.gov.hmrc.versioning.SbtGitVersioning
 
 val name = "sbt-artifactory"
 
-val sbtV = sbtBinaryVersion in pluginCrossBuild
-val scalaV = scalaBinaryVersion in update
-
 val dispatch = (sbtVersion in pluginCrossBuild) {
   case v if v startsWith "0.13" => "net.databinder.dispatch" %% "dispatch-core" % "0.11.4"
-  case v if v startsWith "1.3" => "net.databinder.dispatch" %% "dispatch-core" % "0.13.4"
+  case v if v startsWith "1.3"  => "net.databinder.dispatch" %% "dispatch-core" % "0.13.4"
 }
 
 lazy val project = Project(name, file("."))
@@ -24,16 +21,13 @@ lazy val project = Project(name, file("."))
     sbtPlugin := true,
     scalaVersion := "2.12.12",
     crossSbtVersions := Vector("0.13.18", "1.3.13"),
+    addSbtPlugin("org.scala-js" % "sbt-scalajs"      % "0.6.31"),
+    addSbtPlugin("uk.gov.hmrc"  % "sbt-setting-keys" % "0.1.0" ),
     libraryDependencies ++= Seq(
-      sbtPluginExtra("org.scala-js" % "sbt-scalajs" % "0.6.31", sbtV.value, scalaV.value),
-      "com.typesafe.play"     %% "play-json"                  % "2.6.14",
-      "org.joda"              % "joda-convert"                % "2.2.1",
-      "org.scalatest"         %% "scalatest"                  % "3.2.1"    % Test,
-      "org.scalatestplus"     %% "scalatestplus-mockito"      % "1.0.0-M2" % Test,
-      "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test, // replaces pegdown for newer scalatest
+      "com.typesafe.play"     %% "play-json"             % "2.6.14",
+      "org.joda"              %  "joda-convert"          % "2.2.1",
+      "org.scalatest"         %% "scalatest"             % "3.2.1"    % Test,
+      "org.scalatestplus"     %% "scalatestplus-mockito" % "1.0.0-M2" % Test,
+      "com.vladsch.flexmark"  %  "flexmark-all"          % "0.35.10"  % Test // required by scalatest
     ) :+ dispatch.value
-  )
-  .settings(
-    buildInfoKeys    := Seq[BuildInfoKey](version),
-    buildInfoPackage := "uk.gov.hmrc.sbtartifactory"
   )

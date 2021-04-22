@@ -35,10 +35,13 @@ lazy val project = Project(name, file("."))
     libraryDependencies ++= Seq(
       sbtPluginExtra("org.scala-js" % "sbt-scalajs" % "0.6.31", sbtV.value, scalaV.value),
       sbtPluginExtra("org.foundweekends" % "sbt-bintray" % sbtBintrayVersion.value, sbtV.value, scalaV.value),
+      sbtPluginExtra("uk.gov.hmrc" % "sbt-setting-keys" % "0.2.0", sbtV.value, scalaV.value),
       "com.typesafe.play"     %% "play-json"                  % "2.6.14",
       "org.joda"              % "joda-convert"                % "2.2.1",
       "org.scalatest"         %% "scalatest"                  % "3.2.1"    % Test,
       "org.scalatestplus"     %% "scalatestplus-mockito"      % "1.0.0-M2" % Test,
       "com.vladsch.flexmark"  % "flexmark-all"                % "0.35.10"  % Test, // replaces pegdown for newer scalatest
-    ) ++ dispatch.value.toSeq
+    ) ++ dispatch.value.toSeq,
+
+    resolvers += Resolver.url("HMRC-open-artefacts-ivy2", url("https://open.artefacts.tax.service.gov.uk/ivy2"))(Resolver.ivyStylePatterns)
   )

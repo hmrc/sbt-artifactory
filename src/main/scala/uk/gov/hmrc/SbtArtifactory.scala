@@ -24,6 +24,7 @@ import sbt.Classpaths.{getPublishTo, publishTask}
 import sbt.Keys.{publish, sbtPlugin, _}
 import sbt.Resolver.ivyStylePatterns
 import sbt.{Def, PublishConfiguration, Resolver, taskKey, _}
+import uk.gov.hmrc.sbtsettingkeys.Keys.isPublicArtefact
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -58,7 +59,6 @@ object SbtArtifactory extends sbt.AutoPlugin{
     val publishToBintray = taskKey[Unit]("Publish artifact to Artifactory")
     val publishToArtifactory = taskKey[Unit]("Publish artifact to Bintray")
     val publishAndDistribute = taskKey[Unit]("Deprecated - please use publishAll instead")
-    val makePublicallyAvailableOnBintray = settingKey[Boolean]("Indicates whether an artifact is public and should be published to Bintray")
     val repoKey = settingKey[String]("Artifactory repository name")
     val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
     val bintrayPublishConfiguration = taskKey[PublishConfiguration]("Configuration for publishing to a Bintray repository")
@@ -81,7 +81,6 @@ object SbtArtifactory extends sbt.AutoPlugin{
     //Overriding the default otherResolvers is required to also initialise the publishTo in bintray resolver
     otherResolvers := Resolver.publishMavenLocal +: (publishTo.value.toVector ++ (publishTo in bintray).value.toVector),
     licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"),
-    makePublicallyAvailableOnBintray := false,
     artifactDescription := ArtifactDescription.withCrossScalaVersion(
       org            = organization.value,
       name           = name.value,
@@ -89,11 +88,11 @@ object SbtArtifactory extends sbt.AutoPlugin{
       scalaVersion   = scalaVersion.value,
       // sbtVersion needs to be resolved in the context of the pluginCrossBuild so it resolves correctly for cross-compiling sbt
       sbtVersion     = (sbtVersion in pluginCrossBuild).value,
-      publicArtifact = makePublicallyAvailableOnBintray.value,
+      publicArtifact = isPublicArtefact.value,
       sbtPlugin      = sbtPlugin.value,
       scalaJsVersion = if (isScalaJSProject.value) Some(ScalaJSCrossVersion.currentBinaryVersion) else None
     ),
-    repoKey := artifactoryRepoKey(sbtPlugin.value, makePublicallyAvailableOnBintray.value),
+    repoKey := artifactoryRepoKey(sbtPlugin.value, isPublicArtefact.value),
     publishMavenStyle := !sbtPlugin.value,
     publishTo := maybeArtifactoryUri.map { uri =>
       if (sbtPlugin.value)

@@ -12,7 +12,6 @@ val dispatch = (sbtVersion in pluginCrossBuild) {
 }
 
 lazy val project = Project(name, file("."))
-  .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
   .settings(
     majorVersion     := 1,
     isPublicArtefact := true
@@ -22,7 +21,7 @@ lazy val project = Project(name, file("."))
     scalaVersion := "2.12.12",
     crossSbtVersions := Vector("0.13.18", "1.3.13"),
     addSbtPlugin("org.scala-js" % "sbt-scalajs"      % "0.6.31"),
-    addSbtPlugin("uk.gov.hmrc"  % "sbt-setting-keys" % "0.2.0" ),
+    addSbtPlugin("uk.gov.hmrc"  % "sbt-setting-keys" % "0.3.0" ),
     libraryDependencies ++= Seq(
       "com.typesafe.play"     %% "play-json"             % "2.6.14",
       "org.joda"              %  "joda-convert"          % "2.2.1",

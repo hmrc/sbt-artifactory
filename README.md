@@ -1,7 +1,7 @@
 
 # sbt-artifactory
 
- [ ![Download](https://api.bintray.com/packages/hmrc/sbt-plugin-releases/sbt-artifactory/images/download.svg) ](https://bintray.com/hmrc/sbt-plugin-releases/sbt-artifactory/_latestVersion)
+ [ ![Download](https://img.shields.io/github/v/release/hmrc/sbt-artifactory) ](https://open.artefacts.tax.service.gov.uk/ivy2/uk.gov.hmrc/sbt-artifactory/scala_2.12/sbt_1.0/)
 
 ### Sbt 1.x
 

@@ -16,70 +16,36 @@
 
 package uk.gov.hmrc
 
-import _root_.bintray.BintrayPlugin
-import bintray.BintrayKeys._
 import org.scalajs.sbtplugin.ScalaJSCrossVersion
 import org.scalajs.sbtplugin.ScalaJSPlugin.AutoImport.isScalaJSProject
-import sbt.Classpaths.{getPublishTo, publishTask}
-import sbt.Keys.{publish, sbtPlugin, _}
-import sbt.Resolver.ivyStylePatterns
-import sbt.{Def, PublishConfiguration, Resolver, taskKey, _}
+import sbt.Classpaths.publishTask
+import sbt.Keys._
+import sbt._
 import uk.gov.hmrc.sbtsettingkeys.Keys.isPublicArtefact
 
+import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
-import scala.language.postfixOps
-import scala.util.matching.Regex
 
 object SbtArtifactory extends sbt.AutoPlugin{
 
-  private val distributionTimeout = 1 minute
+  private val distributionTimeout = 1.minute
 
-  private val artifactoryUriEnvKey            = "ARTIFACTORY_URI"
-  private val artifactoryUsernameEnvKey       = "ARTIFACTORY_USERNAME"
-  private val artifactoryPasswordEnvKey       = "ARTIFACTORY_PASSWORD"
-  private lazy val maybeArtifactoryUri        = sys.env.get(artifactoryUriEnvKey)
-  private lazy val maybeArtifactoryUsername   = sys.env.get(artifactoryUsernameEnvKey)
-  private lazy val maybeArtifactoryPassword   = sys.env.get(artifactoryPasswordEnvKey)
+  private val currentVersion = getClass.getPackage.getImplementationVersion
 
-  private lazy val maybeBintrayOrg            = sys.props.get("bintray.org")
-
-  private val artifactoryLabsPattern: Regex = ".*lab([0-9]{2}).*".r
-
-  private lazy val maybeArtifactoryCredentials = for {
-    uri      <- maybeArtifactoryUri
-    username <- maybeArtifactoryUsername
-    password <- maybeArtifactoryPassword
-  } yield directCredentials(uri, username, password)
+  private lazy val maybeArtifactoryUri        = sys.env.get("ARTIFACTORY_URI")
+  private lazy val maybeArtifactoryUsername   = sys.env.get("ARTIFACTORY_USERNAME")
+  private lazy val maybeArtifactoryPassword   = sys.env.get("ARTIFACTORY_PASSWORD")
 
   object autoImport {
-    val unpublishFromArtifactory = taskKey[Unit]("Unpublish from Artifactory")
-    val unpublishFromBintray = taskKey[Unit]("Unpublish from Bintray")
-    val unpublish = taskKey[Unit]("Unpublish from Artifactory and from Bintray")
-    val publishToBintray = taskKey[Unit]("Publish artifact to Artifactory")
-    val publishToArtifactory = taskKey[Unit]("Publish artifact to Bintray")
-    val publishAndDistribute = taskKey[Unit]("Deprecated - please use publishAll instead")
-    val repoKey = settingKey[String]("Artifactory repository name")
+    val repoKey             = settingKey[String]("Artifactory repository name")
     val artifactDescription = settingKey[ArtifactDescription]("Artifact description")
-    val bintrayPublishConfiguration = taskKey[PublishConfiguration]("Configuration for publishing to a Bintray repository")
+    val unpublish           = taskKey[Unit]("Unpublish from Artifactory")
   }
 
   import autoImport._
 
   override val projectSettings: Seq[Def.Setting[_]] = Seq(
-    publishMavenStyle := !sbtPlugin.value,
-    bintrayOrganization := maybeBintrayOrg.orElse(Some("hmrc")).map { org =>
-      sLog.value.info(s"SbtArtifactoryPlugin - Resolved Bintray organisation to be '$org'")
-      org
-    },
-    bintrayRepository := {
-      val resolved = bintrayRepoKey(sbtPlugin.value, maybeArtifactoryUri)
-      sLog.value.info(s"SbtArtifactoryPlugin - Resolved Bintray repository to be '$resolved'")
-      resolved
-    },
-    bintrayPublishConfiguration := PublishConfigurationSupport.withResolverName(publishConfiguration.value, getPublishTo((publishTo in bintray).value).name),
-    //Overriding the default otherResolvers is required to also initialise the publishTo in bintray resolver
-    otherResolvers := Resolver.publishMavenLocal +: (publishTo.value.toVector ++ (publishTo in bintray).value.toVector),
+    publishMavenStyle   := !sbtPlugin.value,
     licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"),
     artifactDescription := ArtifactDescription.withCrossScalaVersion(
       org            = organization.value,
@@ -96,71 +62,32 @@ object SbtArtifactory extends sbt.AutoPlugin{
     publishMavenStyle := !sbtPlugin.value,
     publishTo := maybeArtifactoryUri.map { uri =>
       if (sbtPlugin.value)
-        Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(ivyStylePatterns)
+        Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(Resolver.ivyStylePatterns)
       else
         "Artifactory Realm" at s"$uri/${repoKey.value}"
     },
     credentials ++= {
-      streams.value.log.info(
-        s"SbtArtifactoryPlugin - Configuring Artifactory... " +
-          s"Host: ${maybeArtifactoryUri.getOrElse("not set")}. " +
-          s"User: ${maybeArtifactoryUsername.getOrElse("not set")}. " +
-          s"Password defined: ${maybeArtifactoryPassword.isDefined}")
-
+      // DirectCredentials.toString is not implemented for sbt 0.13
+      val credString = maybeArtifactoryCredentials.map(cred => s"DirectCredentials(${cred.realm}, ${cred.host}, ${cred.userName}, ****)")
+      sLog.value.info(message(name.value, s"Configuring Artifactory credentials: $credString"))
       maybeArtifactoryCredentials.toSeq
     },
-    unpublishFromArtifactory := {
-      streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Artifactory...")
+    unpublish := {
+      sLog.value.info(message(name.value, "Unpublishing from Artifactory..."))
+      Await.result(
         artifactoryConnector(repoKey.value)
-          .deleteVersion(artifactDescription.value, streams.value.log)
-          .awaitResult
+          .deleteVersion(artifactDescription.value, sLog.value),
+        distributionTimeout
+      )
     },
-    unpublishFromBintray := Def.taskDyn({
-      if (artifactDescription.value.publicArtifact) {
-        streams.value.log.info("SbtArtifactoryPlugin - Unpublishing from Bintray...")
-        bintrayUnpublish.toTask
-      } else {
-        Def.task {
-          streams.value.log.info("SbtArtifactoryPlugin - Nothing to unpublish from Bintray...")
-        }
-      }
-    }).result.value.toEither.left.foreach {
-      //don't propagate exception
-      incomplete => streams.value.log.info(s"SbtArtifactoryPlugin - Failed to unpublish from Bintray:\n $incomplete")
-    },
-    unpublish := Def.sequential(
-      unpublishFromArtifactory,
-      unpublishFromBintray
-    ).value,
-    publishToArtifactory := publishTask(publishConfiguration, deliver).value,
-    publishToBintray := Def.taskDyn({
-      if(artifactDescription.value.publicArtifact) {
-        streams.value.log.info("SbtArtifactoryPlugin - Publishing to Bintray...")
-        bintrayRelease
-          .dependsOn(publishTask(bintrayPublishConfiguration, deliver))
-          .dependsOn(bintrayEnsureBintrayPackageExists, bintrayEnsureLicenses)
-      } else {
-        Def.task{
-          streams.value.log.info("SbtArtifactoryPlugin - Not publishing to Bintray...")
-        }
-      }
-    }).result.value.toEither.left.foreach {
-      //don't propagate exception
-      incomplete => streams.value.log.info(s"SbtArtifactoryPlugin - Failed to publish to Bintray:\n $incomplete")
-    },
-    publish := Def.sequential(
-      publishToArtifactory,
-      publishToBintray
-    ).value,
-    publishAndDistribute := {
-      sLog.value.info(s"SbtArtifactoryPlugin - 'publishAndDistribute' is deprecated. Please use publish instead")
-      publish.value
+    publish := {
+      sLog.value.info(message(name.value, "Publishing to Artifactory..."))
+      // this deprecated function is required for sbt 0.13
+      publishTask(publishConfiguration, deliver).value
     }
   )
 
   override def trigger = allRequirements
-  //Without this the BintrayPlugin#bintrayRepository default definition may be applied after our definition
-  override def requires: Plugins = BintrayPlugin
 
   private[hmrc] def artifactoryRepoKey(isSbtPlugin: Boolean, publicArtifact: Boolean): String =
     (isSbtPlugin, publicArtifact) match {
@@ -170,40 +97,25 @@ object SbtArtifactory extends sbt.AutoPlugin{
       case (true, true)   => "hmrc-public-sbt-plugin-releases-local"
     }
 
-  private[hmrc] def bintrayRepoKey(isSbtPlugin: Boolean, artifactoryUriToResolve: Option[String]): String =
-    if (isSbtPlugin) {
-      "sbt-plugin-releases"
-    } else {
-      // Determine whether we're pointing at labs or live artifactory, and resolve to use the correct releases repo
-      (for {
-        artifactoryUri <- artifactoryUriToResolve
-        labNum <- artifactoryLabsPattern.findFirstMatchIn(artifactoryUri).map(_.group(1))
-      } yield s"releases-lab$labNum").getOrElse("releases")
-    }
+  private def maybeArtifactoryCredentials: Option[DirectCredentials] =
+    for {
+      uri      <- maybeArtifactoryUri
+      username <- maybeArtifactoryUsername
+      password <- maybeArtifactoryPassword
+    } yield Credentials(
+        realm    = "Artifactory Realm",
+        host     = new URI(uri).getHost,
+        userName = username,
+        passwd   = password
+      ).asInstanceOf[DirectCredentials]
 
-  private def artifactoryConnector(repositoryName: String) = new ArtifactoryConnector(
-    DispatchCrossSupport.http,
-    directCredentials(
-      getOrError(maybeArtifactoryUri, artifactoryUriEnvKey),
-      getOrError(maybeArtifactoryUsername, artifactoryUsernameEnvKey),
-      getOrError(maybeArtifactoryPassword, artifactoryPasswordEnvKey)
-    ),
-    repositoryName
-  )
+  private def artifactoryConnector(repositoryName: String): ArtifactoryConnector =
+    new ArtifactoryConnector(
+      httpClient     = DispatchCrossSupport.http,
+      credentials    = maybeArtifactoryCredentials.getOrElse(sys.error(s"SbtArtifactoryPlugin - No credential was found found")),
+      repositoryName = repositoryName
+    )
 
-  private def getOrError(option: Option[String], keyName: String): String = option.getOrElse {
-    sys.error(s"SbtArtifactoryPlugin - No $keyName environment variable found")
-  }
-
-  private def directCredentials(uri: String, userName: String, password: String): DirectCredentials =
-    Credentials(
-      realm    = "Artifactory Realm",
-      host     = new URI(uri).getHost,
-      userName = userName,
-      passwd   = password
-    ).asInstanceOf[DirectCredentials]
-
-  private implicit class FutureOps[T](future: Future[T]) {
-    def awaitResult: T = Await.result(future, distributionTimeout)
-  }
+  private def message(projectName: String, msg: String): String =
+    s"SbtArtifactoryPlugin [$currentVersion] ($projectName) - $msg"
 }

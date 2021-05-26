@@ -44,6 +44,10 @@ object SbtArtifactory extends sbt.AutoPlugin{
 
   import autoImport._
 
+  private object EnvKeys {
+    val publishPath = "PUBLISH_PATH"
+  }
+
   override val projectSettings: Seq[Def.Setting[_]] = Seq(
     publishMavenStyle   := !sbtPlugin.value,
     licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"),
@@ -60,12 +64,17 @@ object SbtArtifactory extends sbt.AutoPlugin{
     ),
     repoKey := artifactoryRepoKey(sbtPlugin.value, isPublicArtefact.value),
     publishMavenStyle := !sbtPlugin.value,
-    publishTo := maybeArtifactoryUri.map { uri =>
-      if (sbtPlugin.value)
-        Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(Resolver.ivyStylePatterns)
-      else
-        "Artifactory Realm" at s"$uri/${repoKey.value}"
-    },
+    publishTo :=
+      sys.env.get(EnvKeys.publishPath)
+        .map(p => Resolver.file("file", file(p))(if (sbtPlugin.value) Resolver.ivyStylePatterns else Resolver.mavenStylePatterns))
+        .orElse {
+          maybeArtifactoryUri.map { uri =>
+            if (sbtPlugin.value)
+              Resolver.url(repoKey.value, url(s"$uri/${repoKey.value}"))(Resolver.ivyStylePatterns)
+            else
+              "Artifactory Realm" at s"$uri/${repoKey.value}"
+          }
+        },
     credentials ++= {
       // DirectCredentials.toString is not implemented for sbt 0.13
       val credString = maybeArtifactoryCredentials.map(cred => s"DirectCredentials(${cred.realm}, ${cred.host}, ${cred.userName}, ****)")

@@ -8,9 +8,8 @@ lazy val project = Project("sbt-artifactory", file("."))
   )
   .settings(
     sbtPlugin := true,
-    scalaVersion := "2.12.12",
-    crossSbtVersions := Vector("0.13.18", "1.3.13"),
-    addSbtPlugin("uk.gov.hmrc"  % "sbt-setting-keys" % "0.3.0" ),
+    scalaVersion := "2.12.18",
+    addSbtPlugin("uk.gov.hmrc"  % "sbt-setting-keys" % "1.0.0"),
     libraryDependencies ++= Seq(
       "org.scalatest"         %% "scalatest"             % "3.2.1"    % Test,
       "org.scalatestplus"     %% "scalatestplus-mockito" % "1.0.0-M2" % Test,
